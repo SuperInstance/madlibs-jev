@@ -1,0 +1,46 @@
+{
+  "name": "scene-skin",
+  "version": 1,
+  "description": "A story scene as a sheet of typed cells: the human fills situation facts (spoken); structure formulas, dice-drawn nudges and a resonance term accumulate the unspoken field; the word-smith LLM stretches the last-mile prose over the drum.",
+  "cells": [
+    { "id": "place", "kind": "situation", "type": "choice",
+      "prompt": "Where does the scene happen?",
+      "options": ["a night ferry", "the observatory", "a flooded library", "the last train platform"] },
+    { "id": "arrival", "kind": "situation", "type": "choice",
+      "prompt": "How does the scene open?",
+      "options": ["at dusk", "in fog", "under a power failure", "as the sirens end"] },
+    { "id": "figure", "kind": "situation", "type": "text",
+      "prompt": "Who is there? (a short figure description)" },
+    { "id": "object", "kind": "situation", "type": "text",
+      "prompt": "One object in their hands or on the table" },
+
+    { "id": "luminance", "kind": "structure",
+      "expr": "clamp(0.2 + hash01(place + \"|\" + arrival) * 0.6 + (arrival == \"at dusk\" ? 0.15 : 0), 0, 1)",
+      "doc": "how much light the situation admits (0 dark .. 1 bright)" },
+    { "id": "figure_weight", "kind": "structure",
+      "expr": "clamp(len(figure) / 24, 0, 1)",
+      "doc": "presence weight of the figure from how specifically they are described" },
+    { "id": "object_gravity", "kind": "structure",
+      "expr": "clamp(len(object) / 16, 0, 1)",
+      "doc": "how much the object pulls focus" },
+
+    { "id": "dread", "kind": "nudge", "weight": 0.9,
+      "expr": "sway(\"dread|\" + shape) * (1 - luminance)",
+      "doc": "darker scenes lean toward dread; dice-drawn direction" },
+    { "id": "longing", "kind": "nudge", "weight": 0.8,
+      "expr": "sway(\"longing|\" + shape) * luminance",
+      "doc": "brighter scenes admit longing" },
+    { "id": "uncanny", "kind": "nudge", "weight": 0.5,
+      "expr": "sway(\"uncanny|\" + shape) * (0.4 + object_gravity)",
+      "doc": "a heavy object makes the strange more available" },
+    { "id": "resonance", "kind": "nudge", "weight": 0.6,
+      "expr": "0.5 * dread + 0.3 * longing - 0.2 * uncanny",
+      "doc": "feedback term: the field listening to itself" },
+
+    { "id": "scene", "kind": "wordsmith",
+      "instruction": "Write the scene: 3 to 5 sentences of prose. Weave the figure and the object in naturally. Let the nudge vector shade the prose — dread pulls imagery down and inward, longing opens it outward, uncanny lets one detail sit slightly wrong, resonance is the overall pressure. Do not name the axes or the numbers.",
+      "max_tokens": 500, "temperature": 0.8,
+      "fallback_shape": "{figure} waits where {place} holds its {arrival}; the air is {adj}, and {object} keeps its weight.",
+      "doc": "the ONLY LLM cell — last-mile word-smithing over the accumulated unspoken field" }
+  ]
+}
