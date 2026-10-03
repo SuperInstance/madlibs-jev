@@ -48,6 +48,11 @@ The discovery-skin regression is a genuine finding kept visible: coherence is
 not "higher is better" — the compile step chased agreement and flattened the
 novelty axis the template was built to explore. See LIMITS.
 
+Pre-registration, committed before any implementation: `spec/invariants.json`
+is the compile loop's expected-invariant spec (novelty dispersion,
+tuning-weight bounds, band non-degeneracy) — the expectation hash is what the
+coming sealed-compile step will verify against before canonizing a vNext.
+
 ## Token economy (the receipted claim)
 
 10 runs across 2 templates × 2 versions: **6 live word-smith calls, 4

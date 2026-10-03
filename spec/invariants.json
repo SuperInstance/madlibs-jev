@@ -1,0 +1,27 @@
+{
+  "spec": "madlibs-jev.compile.invariants",
+  "version": 1,
+  "invariants": [
+    {
+      "id": "novelty-dispersion",
+      "target": "novelty",
+      "metric": "population stdev across the run receipts of the template version being compiled (the evidence run set) of the novelty axis value: nudge_vector.novelty.value when novelty is a nudge cell, structure.novelty when it is a structure cell",
+      "floor": "measured >= 0.5 x the same stdev over the PARENT version's run receipts (parent rung = the template's parent_version and that version's own runs; the parent is the control rung). INDETERMINATE-SKIP with a stated reason, never a silent pass, when: the template has no novelty cell, the template has no parent_version (genesis rung), the evidence set has fewer than 3 runs, or the parent rung has fewer than 3 runs.",
+      "derivation": "Round 23 post-hoc catch: discovery-skin v2's compile re-tuned novelty weight 1 -> 0.2 (corr -1 read off 3 runs) and the novelty axis flattened; nothing pre-registered the invariant 'novelty dispersion must not collapse', so the regression was caught after canonization and merely kept visible. The floor is relative, not absolute, because healthy dispersion is scene-dependent; the parent rung is the control. Known blind spot, stated up front: if BOTH the evidence set and the parent rung are already collapsed, the relative check passes - the relative floor refuses evolution built on a run set flatter than its own parent, it does not measure absolute health. Child-side half of the check is structural identity: compileTemplate retunes weights only and cannot move structure or nudge values, so the honest compile-time assertion on the child is that the novelty cell's kind and expr are unchanged - a hand-edited formula fails here instead of sneaking through.",
+      "structural_identity": "the child's novelty cell (id, kind, expr) must equal the parent's; any difference is a FAIL even when the dispersion floor passes"
+    },
+    {
+      "id": "tuning-weight-bounds",
+      "metric": "every nudge weight in the child template produced by this compile, checked per cell against the parent weight of the same cell id",
+      "floor": "for each nudge cell: weight unchanged (to === from, incl. lineage-only compiles with no tuning entries) OR 0.2 <= to <= max(0.2, 2 x parent weight) with 1e-4 tolerance for round4 decimal rounding; belt-and-suspenders on the actual child that the engine clamp held",
+      "derivation": "engine.mjs compileTemplate clamps w1 = max(0.2, min(3*w0, w0*(1+corr))). pearson corr lies in [-1,1], so over the whole corr domain the clamp's closure is [0.2, max(0.2, 2*w0)] - the TRUE bound, pre-registered here instead of the [0.0, 2.0] sketch (the real floor is 0.2, not 0.0; for the current template family all parent weights are <= 1.0, so the closure never exceeds 2.0). The engine always applies this clamp, so a pass asserts the clamp held; a fail means the evolution code changed underneath the spec."
+    },
+    {
+      "id": "band-nondegeneracy",
+      "metric": "every band emitted in the compile receipt's bands map (one per shape_seed present in the evidence run set)",
+      "floor": "hi > lo strictly for every emitted band; a null band where a band was computed is a violation",
+      "derivation": "a degenerate band (hi <= lo) can never contain a coherence, so the deadband for that shape class would either always replay or never replay - the muffled-drum failure mode. engine.mjs bandFor keeps hi - lo >= 0.1 (half-margin max(0.05, 2*sd)); today this invariant is a belt-and-suspenders pin on that property, so an engine regression cannot ship inside a canonized compile."
+    }
+  ],
+  "spec_sha_note": "spec_sha = sha256 of the canon() form of this object (engine.mjs canon: sorted keys, no whitespace); carried in every compile receipt, so reformatting this file does not move the hash but editing any value does"
+}
