@@ -1,0 +1,15 @@
+{
+  "name": "madlibs-jev",
+  "version": "0.1.0",
+  "description": "Madlibs where the substrate is the first-class citizen and the LLM is the last-mile word-smith: typed-cell sheets, nudge fields, deadband replay, and a quantized shape index that accelerates the gate without changing it.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "index": "node run-index.mjs",
+    "demo": "node tools/bundle-demo.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
