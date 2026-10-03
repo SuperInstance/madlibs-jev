@@ -259,7 +259,13 @@ export function evalFormula(ast, env) {
 export const CELL_KINDS = ["situation", "structure", "nudge", "wordsmith"];
 
 export function loadTemplate(json) {
-  const t = typeof json === "string" ? JSON.parse(json) : json;
+  // accepts: object | JSON string | path to a .json file
+  let t = json;
+  if (typeof json === "string") {
+    t = json.trim().startsWith("{")
+      ? JSON.parse(json)
+      : JSON.parse(fs.readFileSync(json, "utf8"));
+  }
   const errs = [];
   if (!t || typeof t !== "object") errs.push("template must be an object");
   if (t && typeof t.name !== "string") errs.push("missing name");
@@ -506,7 +512,7 @@ function httpsPostJson(url, headers, body, timeoutMs = 45000) {
 }
 
 export const LLM_ROUTES = [
-  { path: "deepinfra", envKey: "DEEPINFRA_API_KEY", url: "https://api.deepinfra.com/v1/openai/chat/completions", model: "Qwen/Qwen3-30B-A3B-Instruct-2507" },
+  { path: "deepinfra", envKey: "DEEPINFRA_API_KEY", url: "https://api.deepinfra.com/v1/openai/chat/completions", model: "Qwen/Qwen3-Next-80B-A3B-Instruct" },
   { path: "groq", envKey: "GROQ_API_KEY", url: "https://api.groq.com/openai/v1/chat/completions", model: "llama-3.3-70b-versatile" },
 ];
 

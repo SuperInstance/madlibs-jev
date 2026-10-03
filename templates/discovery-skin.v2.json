@@ -1,0 +1,501 @@
+{
+  "name": "discovery-skin",
+  "version": 2,
+  "parent_version": 1,
+  "parent_sha": "4180f34d8ddfb20dd43818f06d822f4acff6ececc802ac4efffe9bad1407ab66",
+  "description": "A research-discovery madlib: the human states a question and its constraints (spoken); novelty/parsimony/risk axes and a guardrail nudge accumulate the unspoken field; the word-smith LLM proposes the next concrete falsifiable move.",
+  "cells": [
+    {
+      "id": "question",
+      "kind": "situation",
+      "type": "text",
+      "prompt": "What are you researching? (one falsifiable question)",
+      "_ast": null
+    },
+    {
+      "id": "budget",
+      "kind": "situation",
+      "type": "choice",
+      "prompt": "Time budget for the next probe?",
+      "options": [
+        "one afternoon",
+        "one week",
+        "one quarter",
+        "one long night"
+      ],
+      "_ast": null
+    },
+    {
+      "id": "risk_appetite",
+      "kind": "situation",
+      "type": "choice",
+      "prompt": "Risk appetite for this probe?",
+      "options": [
+        "playful",
+        "measured",
+        "all-in"
+      ],
+      "_ast": null
+    },
+    {
+      "id": "taboo",
+      "kind": "situation",
+      "type": "text",
+      "prompt": "What must the probe NOT touch or assume?",
+      "_ast": null
+    },
+    {
+      "id": "horizon",
+      "kind": "structure",
+      "expr": "hash01(question + \"|\" + shape)",
+      "doc": "novelty prior drawn from the question and the situation dice",
+      "_ast": {
+        "k": "call",
+        "f": "hash01",
+        "args": [
+          {
+            "k": "bin",
+            "op": "+",
+            "a": {
+              "k": "bin",
+              "op": "+",
+              "a": {
+                "k": "ident",
+                "v": "question"
+              },
+              "b": {
+                "k": "str",
+                "v": "|"
+              }
+            },
+            "b": {
+              "k": "ident",
+              "v": "shape"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "crispness",
+      "kind": "structure",
+      "expr": "clamp(1 - len(question) / 140, 0, 1)",
+      "doc": "shorter questions tend to be crisper; how testable the question reads",
+      "_ast": {
+        "k": "call",
+        "f": "clamp",
+        "args": [
+          {
+            "k": "bin",
+            "op": "-",
+            "a": {
+              "k": "num",
+              "v": 1
+            },
+            "b": {
+              "k": "bin",
+              "op": "/",
+              "a": {
+                "k": "call",
+                "f": "len",
+                "args": [
+                  {
+                    "k": "ident",
+                    "v": "question"
+                  }
+                ]
+              },
+              "b": {
+                "k": "num",
+                "v": 140
+              }
+            }
+          },
+          {
+            "k": "num",
+            "v": 0
+          },
+          {
+            "k": "num",
+            "v": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "leash",
+      "kind": "structure",
+      "expr": "clamp(len(taboo) / 40, 0, 1)",
+      "doc": "constraint gravity: how heavy the taboo is",
+      "_ast": {
+        "k": "call",
+        "f": "clamp",
+        "args": [
+          {
+            "k": "bin",
+            "op": "/",
+            "a": {
+              "k": "call",
+              "f": "len",
+              "args": [
+                {
+                  "k": "ident",
+                  "v": "taboo"
+                }
+              ]
+            },
+            "b": {
+              "k": "num",
+              "v": 40
+            }
+          },
+          {
+            "k": "num",
+            "v": 0
+          },
+          {
+            "k": "num",
+            "v": 1
+          }
+        ]
+      }
+    },
+    {
+      "id": "novelty",
+      "kind": "nudge",
+      "weight": 0.2,
+      "expr": "sway(\"novelty|\" + shape) * (risk_appetite == \"all-in\" ? 1.0 : risk_appetite == \"playful\" ? 0.8 : 0.55)",
+      "doc": "risk appetite amplifies the reach of the probe",
+      "_ast": {
+        "k": "bin",
+        "op": "*",
+        "a": {
+          "k": "call",
+          "f": "sway",
+          "args": [
+            {
+              "k": "bin",
+              "op": "+",
+              "a": {
+                "k": "str",
+                "v": "novelty|"
+              },
+              "b": {
+                "k": "ident",
+                "v": "shape"
+              }
+            }
+          ]
+        },
+        "b": {
+          "k": "cond",
+          "a": {
+            "k": "bin",
+            "op": "==",
+            "a": {
+              "k": "ident",
+              "v": "risk_appetite"
+            },
+            "b": {
+              "k": "str",
+              "v": "all-in"
+            }
+          },
+          "b": {
+            "k": "num",
+            "v": 1
+          },
+          "c": {
+            "k": "cond",
+            "a": {
+              "k": "bin",
+              "op": "==",
+              "a": {
+                "k": "ident",
+                "v": "risk_appetite"
+              },
+              "b": {
+                "k": "str",
+                "v": "playful"
+              }
+            },
+            "b": {
+              "k": "num",
+              "v": 0.8
+            },
+            "c": {
+              "k": "num",
+              "v": 0.55
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "parsimony",
+      "kind": "nudge",
+      "weight": 1.7997,
+      "expr": "sway(\"parsimony|\" + shape) * crispness",
+      "doc": "crisp questions admit cheaper, sharper probes",
+      "_ast": {
+        "k": "bin",
+        "op": "*",
+        "a": {
+          "k": "call",
+          "f": "sway",
+          "args": [
+            {
+              "k": "bin",
+              "op": "+",
+              "a": {
+                "k": "str",
+                "v": "parsimony|"
+              },
+              "b": {
+                "k": "ident",
+                "v": "shape"
+              }
+            }
+          ]
+        },
+        "b": {
+          "k": "ident",
+          "v": "crispness"
+        }
+      }
+    },
+    {
+      "id": "risk",
+      "kind": "nudge",
+      "weight": 1.4,
+      "expr": "sway(\"risk|\" + shape) * (budget == \"one long night\" ? 1.0 : budget == \"one quarter\" ? 0.7 : budget == \"one week\" ? 0.5 : 0.3)",
+      "doc": "budget buys depth of the dive",
+      "_ast": {
+        "k": "bin",
+        "op": "*",
+        "a": {
+          "k": "call",
+          "f": "sway",
+          "args": [
+            {
+              "k": "bin",
+              "op": "+",
+              "a": {
+                "k": "str",
+                "v": "risk|"
+              },
+              "b": {
+                "k": "ident",
+                "v": "shape"
+              }
+            }
+          ]
+        },
+        "b": {
+          "k": "cond",
+          "a": {
+            "k": "bin",
+            "op": "==",
+            "a": {
+              "k": "ident",
+              "v": "budget"
+            },
+            "b": {
+              "k": "str",
+              "v": "one long night"
+            }
+          },
+          "b": {
+            "k": "num",
+            "v": 1
+          },
+          "c": {
+            "k": "cond",
+            "a": {
+              "k": "bin",
+              "op": "==",
+              "a": {
+                "k": "ident",
+                "v": "budget"
+              },
+              "b": {
+                "k": "str",
+                "v": "one quarter"
+              }
+            },
+            "b": {
+              "k": "num",
+              "v": 0.7
+            },
+            "c": {
+              "k": "cond",
+              "a": {
+                "k": "bin",
+                "op": "==",
+                "a": {
+                  "k": "ident",
+                  "v": "budget"
+                },
+                "b": {
+                  "k": "str",
+                  "v": "one week"
+                }
+              },
+              "b": {
+                "k": "num",
+                "v": 0.5
+              },
+              "c": {
+                "k": "num",
+                "v": 0.3
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "guardrail",
+      "kind": "nudge",
+      "weight": 0.2,
+      "expr": "1 - 2 * leash",
+      "doc": "the taboo pulls the field back; empty taboo leaves it free",
+      "_ast": {
+        "k": "bin",
+        "op": "-",
+        "a": {
+          "k": "num",
+          "v": 1
+        },
+        "b": {
+          "k": "bin",
+          "op": "*",
+          "a": {
+            "k": "num",
+            "v": 2
+          },
+          "b": {
+            "k": "ident",
+            "v": "leash"
+          }
+        }
+      }
+    },
+    {
+      "id": "resonance",
+      "kind": "nudge",
+      "weight": 0.2,
+      "expr": "0.6 * novelty - 0.4 * parsimony + 0.2 * risk + 0.2 * guardrail",
+      "doc": "the discovery tension: reach vs economy, felt together",
+      "_ast": {
+        "k": "bin",
+        "op": "+",
+        "a": {
+          "k": "bin",
+          "op": "+",
+          "a": {
+            "k": "bin",
+            "op": "-",
+            "a": {
+              "k": "bin",
+              "op": "*",
+              "a": {
+                "k": "num",
+                "v": 0.6
+              },
+              "b": {
+                "k": "ident",
+                "v": "novelty"
+              }
+            },
+            "b": {
+              "k": "bin",
+              "op": "*",
+              "a": {
+                "k": "num",
+                "v": 0.4
+              },
+              "b": {
+                "k": "ident",
+                "v": "parsimony"
+              }
+            }
+          },
+          "b": {
+            "k": "bin",
+            "op": "*",
+            "a": {
+              "k": "num",
+              "v": 0.2
+            },
+            "b": {
+              "k": "ident",
+              "v": "risk"
+            }
+          }
+        },
+        "b": {
+          "k": "bin",
+          "op": "*",
+          "a": {
+            "k": "num",
+            "v": 0.2
+          },
+          "b": {
+            "k": "ident",
+            "v": "guardrail"
+          }
+        }
+      }
+    },
+    {
+      "id": "discovery",
+      "kind": "wordsmith",
+      "instruction": "Propose the next concrete discovery move for the question: a one-line HYPOTHESIS, a FALSIFICATION TEST cheap enough for the stated budget, and the MINIMUM EVIDENCE that settles it. Honor the nudge vector: high novelty reaches for a surprising consequence, high parsimony keeps the test minimal, risk sets how bold the design may be, guardrail marks where the taboo bites. Do not name the axes or the numbers.",
+      "max_tokens": 500,
+      "temperature": 0.4,
+      "fallback_shape": "A {adj} probe: test the sharpest consequence of {question}; kill it cheaply before scaling; the taboo stays untouched: {taboo}.",
+      "doc": "the ONLY LLM cell — last-mile word-smithing over the accumulated unspoken field",
+      "_ast": null
+    }
+  ],
+  "evolution": {
+    "compiled_from": 1,
+    "runs_considered": 3,
+    "coherence_threshold": 0.55,
+    "tuning": [
+      {
+        "cell": "novelty",
+        "corr": -1,
+        "from": 1,
+        "to": 0.2
+      },
+      {
+        "cell": "parsimony",
+        "corr": 0.9997,
+        "from": 0.9,
+        "to": 1.7997
+      },
+      {
+        "cell": "risk",
+        "corr": 1,
+        "from": 0.7,
+        "to": 1.4
+      },
+      {
+        "cell": "guardrail",
+        "corr": -1,
+        "from": 0.6,
+        "to": 0.2
+      },
+      {
+        "cell": "resonance",
+        "corr": -1,
+        "from": 0.5,
+        "to": 0.2
+      }
+    ],
+    "note": "compiled",
+    "compiled_ts": "2026-10-03T07:37:24.809Z"
+  }
+}
