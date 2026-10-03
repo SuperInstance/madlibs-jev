@@ -92,13 +92,33 @@ node compile.mjs                  # evolve templates from receipts
 node --test tests/engine.test.mjs # 18/18
 ```
 
+
+## Bridge 1, receipted: the quantized shape index (`shape-memory.mjs`)
+
+WP-11's first bridge is implemented additively: a turbovec-style
+**ShapeMemory** (hashed fill-shape embeddings, 4-bit quantization, 8x
+vs float32 verified) shortlists candidates for the deadband, and the
+honest Jaccard gate still disposes — the engine's decision semantics are
+untouched. Receipted by `run-index.mjs`: over all 10 campaign shapes,
+**with-index decisions are identical to the full scan (0 mismatches)**,
+with the shortlist provably containing the row the gate would have found
+(5/5 index tests, 18/18 engine tests).
+
+Two A/B design lessons are receipted in the code so they aren't re-derived:
+a shared scratch ledger let earlier iterations' appended rows poison
+"newest match wins" (fix: pristine copy per arm per iteration); the first
+draft also appended into the campaign ledger of record (reverted from git
+before push — the ledger of record must never be an experiment's scratch
+space).
+
 ## Honest limits
 
 - **Coherence chasing can flatten exploration.** discovery-skin v2 regressed
   (0.60 → 0.54) because the compile step rewarded agreement. Future work: a
   purpose-aware compile that trades coherence against a diversity term.
-- The shape-memory is honest-but-shallow (choice equality + token Jaccard), a
-  deliberate stub for a turbovec-style index (see madlibs-gan-turbovec).
+- The shape-memory GATE is still choice equality + token Jaccard; the
+  turbovec-style index (shape-memory.mjs) accelerates it without changing
+  its semantics. Semantic upgrades (learned embeddings) remain future work.
 - Deadband bands are currently a-priori margins (mean ± max(0.05, 2·sd) once ≥2
   priors exist); learned bands arrive with more receipts.
 - Word-smith fallback is deterministic and honestly labeled `llm:false` in

@@ -618,11 +618,27 @@ export async function runSheet(template, fills, opts = {}) {
   const ledgerPath = opts.ledgerPath ?? null;
   const rows = ledgerPath ? readLedger(ledgerPath) : [];
   let prior = null;
-  if (ledgerPath && !opts.dryBand) {
+  // Bridge 1: optional ShapeMemory shortlist (turbovec-style quantized
+  // index). The index PROPOSES; the Jaccard gate still DISPOSES — the
+  // honest shape check is unchanged, the index only avoids the full scan.
+  let indexInfo = null;
+  let candidates = null;
+  if (opts.shapeMemory && rows.length) {
+    const sl = opts.shapeMemory.shortlist(t, fills, 4);
+    candidates = sl;
+    const byRow = new Map(sl.map((s) => [s.row_id, s]));
+    for (const r of rows) {
+      if (r.kind !== "run" || r.template !== t.name || r.version !== t.version) continue;
+      if (!byRow.has(r.run_id ?? r.tip) && sl.length) continue; // not shortlisted
+      if (similarShape(t, r.fills, fills)) prior = r; // newest match wins
+    }
+    indexInfo = { used: true, shortlist: sl.length, compression: opts.shapeMemory.compressionStats() };
+  } else {
     for (const r of rows) {
       if (r.kind !== "run" || r.template !== t.name || r.version !== t.version) continue;
       if (similarShape(t, r.fills, fills)) prior = r; // newest match wins
     }
+    if (opts.shapeMemory) indexInfo = { used: true, shortlist: 0, compression: opts.shapeMemory.compressionStats() };
   }
   const bands = ledgerPath ? learnedBands(rows, t.name, t.version) : {};
   const priorCoherences = [];
@@ -711,6 +727,7 @@ export async function runSheet(template, fills, opts = {}) {
         : skip ? "coherence inside band — mechanical replay"
         : `coherence ${nudgeState.coherence} outside [${band?.lo}, ${band?.hi}] — word-smith re-opened`,
       tokens_saved: skip ? tokensSaved : 0,
+      index: indexInfo, // Bridge 1: shape-memory shortlist receipt (null when unused)
     },
     wordsmith_calls: calls,
     words,
