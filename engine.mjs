@@ -587,9 +587,15 @@ export function verifyLedger(rows) {
   return { ok: true, rows: rows.length, tip: prev };
 }
 
-// learned bands come from the newest compile receipt per template+version
+// learned bands come from the newest compile receipt per template+version.
+// Sealed-compiles rule (68-b2): a receipt whose verdict is INDETERMINATE had
+// its canonization REFUSED — its bands are the bands of a template that was
+// never materialized, so they must not feed learned-band lookups. Pre-seal
+// receipts (no verdict field) and CANONIZED receipts feed as before.
 export function learnedBands(rows, name, version) {
-  const compiles = rows.filter((r) => r.kind === "compile" && r.template === name && r.parent_version === version);
+  const compiles = rows.filter((r) =>
+    r.kind === "compile" && r.template === name && r.parent_version === version
+    && r.verdict !== "INDETERMINATE");
   if (!compiles.length) return {};
   return compiles[compiles.length - 1].bands ?? {};
 }
