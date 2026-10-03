@@ -53,6 +53,28 @@ is the compile loop's expected-invariant spec (novelty dispersion,
 tuning-weight bounds, band non-degeneracy) — the expectation hash is what the
 coming sealed-compile step will verify against before canonizing a vNext.
 
+## Sealed compiles
+
+The compile step is a self-modification loop, so every canonization now runs
+the full chain: **(a) expectation hash** — `spec_sha = sha256(canon(spec))`
+(engine canon: reformatting the spec moves nothing, editing a value moves
+everything); **(b) config** — the parent template + its evidence run set;
+**(c) result** — the child, receipted with the evaluated invariants and a
+verdict. A missing spec refuses the compile outright (`COMPILE_REFUSED`,
+exit 1, nothing happened: no receipt, no vNext — a receipt of nothing would
+be noise). The three invariants: `novelty-dispersion` (the evidence run set's
+novelty-axis stdev must stay >= 0.5 × the parent version's — the relative
+floor that would have refused the discovery-skin 1 → 0.2 flattening had it
+been pre-registered, plus a structural-identity check that the child's
+novelty formula is untouched), `tuning-weight-bounds` (the TRUE engine clamp
+closure `[0.2, max(0.2, 2 × parent weight)]`, not the [0, 2] sketch), and
+`band-nondegeneracy` (every learned band keeps `hi > lo` — degenerate bands
+are the muffled-drum failure mode). On any breach the receipt is appended
+with `verdict: "INDETERMINATE"`, the vNext file is **not** written, exit is 1:
+the refused child is identified by `child_sha` but never materialized.
+Compiles still write vNext to `<template>.v<N>.json` beside the parent —
+compile from a copy if you do not want the version file in situ.
+
 ## Token economy (the receipted claim)
 
 10 runs across 2 templates × 2 versions: **6 live word-smith calls, 4
@@ -79,10 +101,11 @@ wrong, only a drum ready for its skin.
 - `templates/` — scene-skin + discovery-skin, v1 and v2 (v1 immutable).
 - `receipts/ledger.jsonl` — append-only run + compile receipts (sha-chained
   via `prev_tip` → `tip`).
-- `tests/` — 18 tests: fail-closed parsing, nudge determinism, deadband skip,
+- `tests/` — 31 tests: fail-closed parsing, nudge determinism, deadband skip,
   ledger append-only, template-evolution link integrity, **demo parity** (the
   client-side core in `demo/index.html` is pinned to the engine on a fixed
-  battery).
+  battery), **sealed compiles** (expectation-hash binding, CANONIZED and
+  INDETERMINATE paths, CLI refusals, ledger-of-record untouched).
 - `demo/index.html` — self-contained madlibs playground (no network, no CDN):
   fill the spoken blanks, watch the nudge field + coherence meter move, run,
   and read the bundled real receipts. Dark quilt aesthetic.
