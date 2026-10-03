@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>madlibs-jev — the unspoken holds the pen</title>
+<style>
+  :root {
+    --ink: #0d0f14;        /* deep ink background */
+    --panel: #12151d;
+    --panel2: #171b25;
+    --line: #1d2230;
+    --text: #c7cdd8;
+    --dim: #6b7280;
+    --mint: #7ee0c3;       /* luminous cell accent */
+    --amber: #f0b429;      /* luminous cell accent 2 */
+    --mono: ui-monospace, "JetBrains Mono", "Fira Code", Menlo, Consolas, monospace;
+    --serif: Georgia, "Times New Roman", serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--ink); color: var(--text); font: 15px/1.5 var(--mono); }
+  header { padding: 26px 32px 18px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: .12em; color: var(--mint); font-weight: 600; }
+  header .sub { color: var(--dim); font-size: 12.5px; margin-top: 6px; letter-spacing: .04em; }
+  header .sub b { color: var(--amber); font-weight: 500; }
+  main { display: grid; grid-template-columns: minmax(340px, 480px) 1fr; gap: 18px; padding: 18px 32px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px; }
+  .panel h2 { margin: 0 0 14px; font-size: 12px; letter-spacing: .18em; color: var(--dim); font-weight: 600; }
+  .panel h2 .dot { color: var(--mint); }
+  label { display: block; font-size: 11.5px; color: var(--dim); letter-spacing: .06em; margin: 14px 0 5px; }
+  label .kind { color: var(--mint); }
+  select, input[type=text] {
+    width: 100%; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px;
+    font: 14px var(--mono); outline: none;
+  }
+  select:focus, input[type=text]:focus { border-color: var(--mint); }
+  .cell-ghost { font-size: 11px; color: var(--dim); margin-top: 8px; }
+  .cell-ghost code { color: #8f9bb0; }
+  .runrow { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+  button#run {
+    background: var(--mint); color: #06231b; border: 0; border-radius: 7px;
+    padding: 10px 22px; font: 700 14px var(--mono); letter-spacing: .14em; cursor: pointer;
+  }
+  button#run:hover { filter: brightness(1.08); }
+  .template-pick { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 4px; }
+  .tpick {
+    border: 1px solid var(--line); background: var(--panel2); color: var(--dim);
+    border-radius: 6px; padding: 6px 10px; font: 12px var(--mono); cursor: pointer;
+  }
+  .tpick.on { border-color: var(--mint); color: var(--mint); }
+  canvas { width: 100%; height: auto; display: block; }
+  .wordcard { margin-top: 14px; background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--mint); border-radius: 6px; padding: 14px 16px; }
+  .wordcard.replay { border-left-color: var(--amber); }
+  .wordcard.fallback { border-left-color: #566074; }
+  .wordcard .badge { display: inline-block; font-size: 10.5px; letter-spacing: .1em; border-radius: 4px; padding: 2px 8px; margin-bottom: 8px; }
+  .badge.live { background: #123328; color: var(--mint); }
+  .badge.replay { background: #332a12; color: var(--amber); }
+  .badge.fallback { background: #1a1e28; color: #8f9bb0; }
+  .words { font-family: var(--serif); font-size: 16px; line-height: 1.65; color: #e6e2d6; }
+  .stategrid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 12px; color: var(--dim); margin-top: 10px; }
+  .stategrid b { color: var(--text); font-weight: 500; }
+  .receipts { grid-column: 1 / -1; }
+  .rstrip { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px; }
+  .rchip {
+    min-width: 172px; background: var(--panel2); border: 1px solid var(--line);
+    border-radius: 8px; padding: 10px 12px; font-size: 11px; flex: 0 0 auto;
+  }
+  .rchip .rid { color: var(--dim); font-size: 10px; letter-spacing: .04em; }
+  .rchip .rline { margin-top: 4px; }
+  .rchip .mode-live { color: var(--mint); }
+  .rchip .mode-replay { color: var(--amber); }
+  .rchip .mode-breach, .rchip .mode-fallback { color: #e06c75; }
+  .rchip .mode-compile { color: #8f9bb0; }
+  .okbadge { color: var(--mint); font-size: 11px; margin-top: 8px; letter-spacing: .08em; }
+  footer { padding: 14px 32px 30px; color: var(--dim); font-size: 11.5px; letter-spacing: .05em; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MADLIBS-JEV</h1>
+  <div class="sub">the sheet is typed cells · the <b>unspoken</b> accumulates first · the LLM is a <b>last-mile word-smith</b> · the deadband replays the known · receipts chain everything</div>
+</header>
+
+<script id="bundled-templates" type="application/json">[{"name":"scene-skin","version":1,"description":"A story scene as a sheet of typed cells: the human fills situation facts (spoken); structure formulas, dice-drawn nudges and a resonance term accumulate the unspoken field; the word-smith LLM stretches the last-mile prose over the drum.","cells":[{"id":"place","kind":"situation","type":"choice","prompt":"Where does the scene happen?","options":["a night ferry","the observatory","a flooded library","the last train platform"]},{"id":"arrival","kind":"situation","type":"choice","prompt":"How does the scene open?","options":["at dusk","in fog","under a power failure","as the sirens end"]},{"id":"figure","kind":"situation","type":"text","prompt":"Who is there? (a short figure description)"},{"id":"object","kind":"situation","type":"text","prompt":"One object in their hands or on the table"},{"id":"luminance","kind":"structure","expr":"clamp(0.2 + hash01(place + \"|\" + arrival) * 0.6 + (arrival == \"at dusk\" ? 0.15 : 0), 0, 1)","doc":"how much light the situation admits (0 dark .. 1 bright)"},{"id":"figure_weight","kind":"structure","expr":"clamp(len(figure) / 24, 0, 1)","doc":"presence weight of the figure from how specifically they are described"},{"id":"object_gravity","kind":"structure","expr":"clamp(len(object) / 16, 0, 1)","doc":"how much the object pulls focus"},{"id":"dread","kind":"nudge","weight":0.9,"expr":"sway(\"dread|\" + shape) * (1 - luminance)","doc":"darker scenes lean toward dread; dice-drawn direction"},{"id":"longing","kind":"nudge","weight":0.8,"expr":"sway(\"longing|\" + shape) * luminance","doc":"brighter scenes admit longing"},{"id":"uncanny","kind":"nudge","weight":0.5,"expr":"sway(\"uncanny|\" + shape) * (0.4 + object_gravity)","doc":"a heavy object makes the strange more available"},{"id":"resonance","kind":"nudge","weight":0.6,"expr":"0.5 * dread + 0.3 * longing - 0.2 * uncanny","doc":"feedback term: the field listening to itself"},{"id":"scene","kind":"wordsmith","instruction":"Write the scene: 3 to 5 sentences of prose. Weave the figure and the object in naturally. Let the nudge vector shade the prose — dread pulls imagery down and inward, longing opens it outward, uncanny lets one detail sit slightly wrong, resonance is the overall pressure. Do not name the axes or the numbers.","max_tokens":500,"temperature":0.8,"fallback_shape":"{figure} waits where {place} holds its {arrival}; the air is {adj}, and {object} keeps its weight.","doc":"the ONLY LLM cell — last-mile word-smithing over the accumulated unspoken field"}]},{"name":"scene-skin","version":2,"parent_version":1,"parent_sha":"392e26cec942160d5dc917e20a8d5fe6c166eb5608e9f08f3c81c0c1a275a17f","description":"A story scene as a sheet of typed cells: the human fills situation facts (spoken); structure formulas, dice-drawn nudges and a resonance term accumulate the unspoken field; the word-smith LLM stretches the last-mile prose over the drum.","cells":[{"id":"place","kind":"situation","type":"choice","prompt":"Where does the scene happen?","options":["a night ferry","the observatory","a flooded library","the last train platform"]},{"id":"arrival","kind":"situation","type":"choice","prompt":"How does the scene open?","options":["at dusk","in fog","under a power failure","as the sirens end"]},{"id":"figure","kind":"situation","type":"text","prompt":"Who is there? (a short figure description)"},{"id":"object","kind":"situation","type":"text","prompt":"One object in their hands or on the table"},{"id":"luminance","kind":"structure","expr":"clamp(0.2 + hash01(place + \"|\" + arrival) * 0.6 + (arrival == \"at dusk\" ? 0.15 : 0), 0, 1)","doc":"how much light the situation admits (0 dark .. 1 bright)"},{"id":"figure_weight","kind":"structure","expr":"clamp(len(figure) / 24, 0, 1)","doc":"presence weight of the figure from how specifically they are described"},{"id":"object_gravity","kind":"structure","expr":"clamp(len(object) / 16, 0, 1)","doc":"how much the object pulls focus"},{"id":"dread","kind":"nudge","weight":0.2,"expr":"sway(\"dread|\" + shape) * (1 - luminance)","doc":"darker scenes lean toward dread; dice-drawn direction"},{"id":"longing","kind":"nudge","weight":1.6,"expr":"sway(\"longing|\" + shape) * luminance","doc":"brighter scenes admit longing"},{"id":"uncanny","kind":"nudge","weight":0.2,"expr":"sway(\"uncanny|\" + shape) * (0.4 + object_gravity)","doc":"a heavy object makes the strange more available"},{"id":"resonance","kind":"nudge","weight":1.2,"expr":"0.5 * dread + 0.3 * longing - 0.2 * uncanny","doc":"feedback term: the field listening to itself"},{"id":"scene","kind":"wordsmith","instruction":"Write the scene: 3 to 5 sentences of prose. Weave the figure and the object in naturally. Let the nudge vector shade the prose — dread pulls imagery down and inward, longing opens it outward, uncanny lets one detail sit slightly wrong, resonance is the overall pressure. Do not name the axes or the numbers.","max_tokens":500,"temperature":0.8,"fallback_shape":"{figure} waits where {place} holds its {arrival}; the air is {adj}, and {object} keeps its weight.","doc":"the ONLY LLM cell — last-mile word-smithing over the accumulated unspoken field"}],"evolution":{"compiled_from":1,"runs_considered":3,"coherence_threshold":0.55,"tuning":[{"cell":"dread","corr":-1,"from":0.9,"to":0.2},{"cell":"longing","corr":1,"from":0.8,"to":1.6},{"cell":"uncanny","corr":-1,"from":0.5,"to":0.2},{"cell":"resonance","corr":1,"from":0.6,"to":1.2}],"note":"compiled","compiled_ts":"2026-10-03T07:47:20.792Z"}},{"name":"discovery-skin","version":1,"description":"A research-discovery madlib: the human states a question and its constraints (spoken); novelty/parsimony/risk axes and a guardrail nudge accumulate the unspoken field; the word-smith LLM proposes the next concrete falsifiable move.","cells":[{"id":"question","kind":"situation","type":"text","prompt":"What are you researching? (one falsifiable question)"},{"id":"budget","kind":"situation","type":"choice","prompt":"Time budget for the next probe?","options":["one afternoon","one week","one quarter","one long night"]},{"id":"risk_appetite","kind":"situation","type":"choice","prompt":"Risk appetite for this probe?","options":["playful","measured","all-in"]},{"id":"taboo","kind":"situation","type":"text","prompt":"What must the probe NOT touch or assume?"},{"id":"horizon","kind":"structure","expr":"hash01(question + \"|\" + shape)","doc":"novelty prior drawn from the question and the situation dice"},{"id":"crispness","kind":"structure","expr":"clamp(1 - len(question) / 140, 0, 1)","doc":"shorter questions tend to be crisper; how testable the question reads"},{"id":"leash","kind":"structure","expr":"clamp(len(taboo) / 40, 0, 1)","doc":"constraint gravity: how heavy the taboo is"},{"id":"novelty","kind":"nudge","weight":1,"expr":"sway(\"novelty|\" + shape) * (risk_appetite == \"all-in\" ? 1.0 : risk_appetite == \"playful\" ? 0.8 : 0.55)","doc":"risk appetite amplifies the reach of the probe"},{"id":"parsimony","kind":"nudge","weight":0.9,"expr":"sway(\"parsimony|\" + shape) * crispness","doc":"crisp questions admit cheaper, sharper probes"},{"id":"risk","kind":"nudge","weight":0.7,"expr":"sway(\"risk|\" + shape) * (budget == \"one long night\" ? 1.0 : budget == \"one quarter\" ? 0.7 : budget == \"one week\" ? 0.5 : 0.3)","doc":"budget buys depth of the dive"},{"id":"guardrail","kind":"nudge","weight":0.6,"expr":"1 - 2 * leash","doc":"the taboo pulls the field back; empty taboo leaves it free"},{"id":"resonance","kind":"nudge","weight":0.5,"expr":"0.6 * novelty - 0.4 * parsimony + 0.2 * risk + 0.2 * guardrail","doc":"the discovery tension: reach vs economy, felt together"},{"id":"discovery","kind":"wordsmith","instruction":"Propose the next concrete discovery move for the question: a one-line HYPOTHESIS, a FALSIFICATION TEST cheap enough for the stated budget, and the MINIMUM EVIDENCE that settles it. Honor the nudge vector: high novelty reaches for a surprising consequence, high parsimony keeps the test minimal, risk sets how bold the design may be, guardrail marks where the taboo bites. Do not name the axes or the numbers.","max_tokens":500,"temperature":0.4,"fallback_shape":"A {adj} probe: test the sharpest consequence of {question}; kill it cheaply before scaling; the taboo stays untouched: {taboo}.","doc":"the ONLY LLM cell — last-mile word-smithing over the accumulated unspoken field"}]},{"name":"discovery-skin","version":2,"parent_version":1,"parent_sha":"4180f34d8ddfb20dd43818f06d822f4acff6ececc802ac4efffe9bad1407ab66","description":"A research-discovery madlib: the human states a question and its constraints (spoken); novelty/parsimony/risk axes and a guardrail nudge accumulate the unspoken field; the word-smith LLM proposes the next concrete falsifiable move.","cells":[{"id":"question","kind":"situation","type":"text","prompt":"What are you researching? (one falsifiable question)"},{"id":"budget","kind":"situation","type":"choice","prompt":"Time budget for the next probe?","options":["one afternoon","one week","one quarter","one long night"]},{"id":"risk_appetite","kind":"situation","type":"choice","prompt":"Risk appetite for this probe?","options":["playful","measured","all-in"]},{"id":"taboo","kind":"situation","type":"text","prompt":"What must the probe NOT touch or assume?"},{"id":"horizon","kind":"structure","expr":"hash01(question + \"|\" + shape)","doc":"novelty prior drawn from the question and the situation dice"},{"id":"crispness","kind":"structure","expr":"clamp(1 - len(question) / 140, 0, 1)","doc":"shorter questions tend to be crisper; how testable the question reads"},{"id":"leash","kind":"structure","expr":"clamp(len(taboo) / 40, 0, 1)","doc":"constraint gravity: how heavy the taboo is"},{"id":"novelty","kind":"nudge","weight":0.2,"expr":"sway(\"novelty|\" + shape) * (risk_appetite == \"all-in\" ? 1.0 : risk_appetite == \"playful\" ? 0.8 : 0.55)","doc":"risk appetite amplifies the reach of the probe"},{"id":"parsimony","kind":"nudge","weight":1.7997,"expr":"sway(\"parsimony|\" + shape) * crispness","doc":"crisp questions admit cheaper, sharper probes"},{"id":"risk","kind":"nudge","weight":1.4,"expr":"sway(\"risk|\" + shape) * (budget == \"one long night\" ? 1.0 : budget == \"one quarter\" ? 0.7 : budget == \"one week\" ? 0.5 : 0.3)","doc":"budget buys depth of the dive"},{"id":"guardrail","kind":"nudge","weight":0.2,"expr":"1 - 2 * leash","doc":"the taboo pulls the field back; empty taboo leaves it free"},{"id":"resonance","kind":"nudge","weight":0.2,"expr":"0.6 * novelty - 0.4 * parsimony + 0.2 * risk + 0.2 * guardrail","doc":"the discovery tension: reach vs economy, felt together"},{"id":"discovery","kind":"wordsmith","instruction":"Propose the next concrete discovery move for the question: a one-line HYPOTHESIS, a FALSIFICATION TEST cheap enough for the stated budget, and the MINIMUM EVIDENCE that settles it. Honor the nudge vector: high novelty reaches for a surprising consequence, high parsimony keeps the test minimal, risk sets how bold the design may be, guardrail marks where the taboo bites. Do not name the axes or the numbers.","max_tokens":500,"temperature":0.4,"fallback_shape":"A {adj} probe: test the sharpest consequence of {question}; kill it cheaply before scaling; the taboo stays untouched: {taboo}.","doc":"the ONLY LLM cell — last-mile word-smithing over the accumulated unspoken field"}],"evolution":{"compiled_from":1,"runs_considered":3,"coherence_threshold":0.55,"tuning":[{"cell":"novelty","corr":-1,"from":1,"to":0.2},{"cell":"parsimony","corr":0.9997,"from":0.9,"to":1.7997},{"cell":"risk","corr":1,"from":0.7,"to":1.4},{"cell":"guardrail","corr":-1,"from":0.6,"to":0.2},{"cell":"resonance","corr":-1,"from":0.5,"to":0.2}],"note":"compiled","compiled_ts":"2026-10-03T07:47:20.833Z"}}]</script>
+<script id="bundled-receipts" type="application/json">[{"kind":"run","run_id":"scene-skin.v1.2026-10-03T07:36:41.875Z.7e2bb0","ts":"2026-10-03T07:36:41.875Z","template":"scene-skin","version":1,"template_sha":"392e26cec942160d5dc917e20a8d5fe6c166eb5608e9f08f3c81c0c1a275a17f","seed":"70eb23fc35cc","shape_seed":"1d580ec3118c","fills":{"place":"a night ferry","arrival":"in fog","figure":"the ferryman","object":"a brass key"},"nudge_vector":{"dread":{"value":-0.1075,"weight":0.9,"contrib":-0.0968},"longing":{"value":0.2466,"weight":0.8,"contrib":0.1972},"uncanny":{"value":0.9124,"weight":0.5,"contrib":0.4562},"resonance":{"value":-0.1623,"weight":0.6,"contrib":-0.0974}},"coherence":0.4605,"structure":{"luminance":0.4006,"figure_weight":0.5,"object_gravity":0.6875},"deadband":{"prior_run":null,"band":null,"in_band":false,"mode":"live","reason":"no similar prior","tokens_saved":0},"wordsmith_calls":[{"cell":"scene","path":"deepinfra","model":"Qwen/Qwen3-Next-80B-A3B-Instruct","llm":true,"usage":{"prompt_tokens":325,"total_tokens":473,"completion_tokens":148,"estimated_cost":0.00019205,"prompt_tokens_details":null,"reasoning_tokens":0},"ms":5239}],"words":{"scene":"The ferryman stood motionless at the prow, the brass key dangling from his wrist like a forgotten prayer, its teeth glinting just slightly too sharp in the fog’s damp breath.  \nNo one else had boarded, yet the boat groaned under the weight of unseen passengers, their silence pressing against the hull like a held sigh.  \nThe key turned in his palm—not with purpose, but as if it remembered a lock long since rusted shut, and still, still, it waited.  \nFog curled around his boots, thick as wool, swallowing the shore whole, and still he stared toward nothing, as though the key had already unlocked something inside him—and now he couldn’t remember what it was meant to open."},"words_text":"The ferryman stood motionless at the prow, the brass key dangling from his wrist like a forgotten prayer, its teeth glinting just slightly too sharp in the fog’s damp breath.  \nNo one else had boarded, yet the boat groaned under the weight of unseen passengers, their silence pressing against the hull like a held sigh.  \nThe key turned in his palm—not with purpose, but as if it remembered a lock long since rusted shut, and still, still, it waited.  \nFog curled around his boots, thick as wool, swallowing the shore whole, and still he stared toward nothing, as though the key had already unlocked something inside him—and now he couldn’t remember what it was meant to open.","prev_tip":"genesis","tip":"3653af1875e0780adb6f1a2c7c064cccfa4d8cfeb139b0bbfc1443c916c96f0a"},{"kind":"run","run_id":"scene-skin.v1.2026-10-03T07:36:48.136Z.81a281","ts":"2026-10-03T07:36:48.136Z","template":"scene-skin","version":1,"template_sha":"392e26cec942160d5dc917e20a8d5fe6c166eb5608e9f08f3c81c0c1a275a17f","seed":"748872024be8","shape_seed":"1d580ec3118c","fills":{"place":"a night ferry","arrival":"in fog","figure":"the old ferryman","object":"a brass key"},"nudge_vector":{"dread":{"value":-0.1075,"weight":0.9,"contrib":-0.0968},"longing":{"value":0.2466,"weight":0.8,"contrib":0.1972},"uncanny":{"value":0.9124,"weight":0.5,"contrib":0.4562},"resonance":{"value":-0.1623,"weight":0.6,"contrib":-0.0974}},"coherence":0.4605,"structure":{"luminance":0.4006,"figure_weight":0.6667,"object_gravity":0.6875},"deadband":{"prior_run":"scene-skin.v1.2026-10-03T07:36:41.875Z.7e2bb0","band":{"lo":0.3105,"hi":0.6105,"learned":false},"in_band":true,"mode":"replay","reason":"coherence inside band — mechanical replay","tokens_saved":473},"wordsmith_calls":[{"cell":"scene","path":"replay","llm":false,"morphs":0,"replay_of":"scene-skin.v1.2026-10-03T07:36:41.875Z.7e2bb0"}],"words":{"scene":"The ferryman stood motionless at the prow, the brass key dangling from his wrist like a forgotten prayer, its teeth glinting just slightly too sharp in the fog’s damp breath.  \nNo one else had boarded, yet the boat groaned under the weight of unseen passengers, their silence pressing against the hull like a held sigh.  \nThe key turned in his palm—not with purpose, but as if it remembered a lock long since rusted shut, and still, still, it waited.  \nFog curled around his boots, thick as wool, swallowing the shore whole, and still he stared toward nothing, as though the key had already unlocked something inside him—and now he couldn’t remember what it was meant to open."},"words_text":"The ferryman stood motionless at the prow, the brass key dangling from his wrist like a forgotten prayer, its teeth glinting just slightly too sharp in the fog’s damp breath.  \nNo one else had boarded, yet the boat groaned under the weight of unseen passengers, their silence pressing against the hull like a held sigh.  \nThe key turned in his palm—not with purpose, but as if it remembered a lock long since rusted shut, and still, still, it waited.  \nFog curled around his boots, thick as wool, swallowing the shore whole, and still he stared toward nothing, as though the key had already unlocked something inside him—and now he couldn’t remember what it was meant to open.","prev_tip":"3653af1875e0780adb6f1a2c7c064cccfa4d8cfeb139b0bbfc1443c916c96f0a","tip":"0a4175abd9333ea118b2d13e532d899ea060e3f24af7af79d7dae58cfc6aa013"},{"kind":"run","run_id":"scene-skin.v1.2026-10-03T07:36:49.547Z.0c3634","ts":"2026-10-03T07:36:49.547Z","template":"scene-skin","version":1,"template_sha":"392e26cec942160d5dc917e20a8d5fe6c166eb5608e9f08f3c81c0c1a275a17f","seed":"db357e6e844e","shape_seed":"934127b1fc8f","fills":{"place":"the observatory","arrival":"at dusk","figure":"the astronomer","object":"a cracked brass compass"},"nudge_vector":{"dread":{"value":-0.2395,"weight":0.9,"contrib":-0.2156},"longing":{"value":0.5229,"weight":0.8,"contrib":0.4183},"uncanny":{"value":0.1763,"weight":0.5,"contrib":0.0881},"resonance":{"value":0.0019,"weight":0.6,"contrib":0.0011}},"coherence":0.5104,"structure":{"luminance":0.7014,"figure_weight":0.5833,"object_gravity":1},"deadband":{"prior_run":null,"band":null,"in_band":false,"mode":"live","reason":"no similar prior","tokens_saved":0},"wordsmith_calls":[{"cell":"scene","path":"deepinfra","model":"Qwen/Qwen3-Next-80B-A3B-Instruct","llm":true,"usage":{"prompt_tokens":335,"total_tokens":398,"completion_tokens":63,"estimated_cost":0.00009945,"prompt_tokens_details":null,"reasoning_tokens":0},"ms":1372}],"words":{"scene":"The astronomer knelt beside the cracked brass compass, its needle trembling not toward north but toward the hollow where the stars had just vanished—dusk swallowing the sky like a held breath, and the glass of the dome, still warm from the sun, whispered back the name she’d forgotten how to speak."},"words_text":"The astronomer knelt beside the cracked brass compass, its needle trembling not toward north but toward the hollow where the stars had just vanished—dusk swallowing the sky like a held breath, and the glass of the dome, still warm from the sun, whispered back the name she’d forgotten how to speak.","prev_tip":"0a4175abd9333ea118b2d13e532d899ea060e3f24af7af79d7dae58cfc6aa013","tip":"2a23bc133aeedfc3f59e74cac2da51132bd74470e4333442be42056e3c18d9aa"},{"kind":"compile","ts":"2026-10-03T07:36:55.797Z","template":"scene-skin","parent_version":1,"parent_sha":"392e26cec942160d5dc917e20a8d5fe6c166eb5608e9f08f3c81c0c1a275a17f","child_version":2,"child_sha":"619fad1ce2d2bf69224be5878e503c81b541d7ae638a6990f105add579b66377","child_path":"templates/scene-skin.v2.json","runs_considered":3,"tuning":[{"cell":"dread","corr":-1,"from":0.9,"to":0.2},{"cell":"longing","corr":1,"from":0.8,"to":1.6},{"cell":"uncanny","corr":-1,"from":0.5,"to":0.2},{"cell":"resonance","corr":1,"from":0.6,"to":1.2}],"note":"compiled","bands":{"1d580ec3118c":{"lo":0.4105,"hi":0.5105,"learned":false},"934127b1fc8f":{"lo":0.3604,"hi":0.6604,"learned":false}},"prev_tip":"2a23bc133aeedfc3f59e74cac2da51132bd74470e4333442be42056e3c18d9aa","tip":"efbcb52f4f9f65c5dd20c33115dd29a5e65b4d5a5569f37d11bd3adbf3a79fae"},{"kind":"run","run_id":"scene-skin.v2.2026-10-03T07:36:57.331Z.5f00c6","ts":"2026-10-03T07:36:57.331Z","template":"scene-skin","version":2,"template_sha":"619fad1ce2d2bf69224be5878e503c81b541d7ae638a6990f105add579b66377","seed":"b2900cbb446e","shape_seed":"018a03355450","fills":{"place":"a flooded library","arrival":"under a power failure","figure":"the night librarian","object":"a card catalogue drawer"},"nudge_vector":{"dread":{"value":0.7639,"weight":0.2,"contrib":0.1528},"longing":{"value":-0.0296,"weight":1.6,"contrib":-0.0473},"uncanny":{"value":0.7215,"weight":0.2,"contrib":0.1443},"resonance":{"value":0.2288,"weight":1.2,"contrib":0.2745}},"coherence":0.5623,"structure":{"luminance":0.2255,"figure_weight":0.7917,"object_gravity":1},"deadband":{"prior_run":null,"band":null,"in_band":false,"mode":"live","reason":"no similar prior","tokens_saved":0},"wordsmith_calls":[{"cell":"scene","path":"deepinfra","model":"Qwen/Qwen3-Next-80B-A3B-Instruct","llm":true,"usage":{"prompt_tokens":338,"total_tokens":464,"completion_tokens":126,"estimated_cost":0.00016902,"prompt_tokens_details":null,"reasoning_tokens":0},"ms":1494}],"words":{"scene":"The drawer hung half-open, its brass handle slick with something that wasn’t water, and the librarian stood motionless, fingers brushing the spine of a book that hadn’t been there yesterday—its title unreadable, its paper warm. Above, the ceiling groaned with the weight of drowned shelves, and the only light came from the faint, flickering glow of the drawer’s interior, as if the wood itself remembered how to breathe. She didn’t close it. She couldn’t. Somewhere in the dark, a single card slipped free—not falling, but drifting, like a sigh that had forgotten how to land."},"words_text":"The drawer hung half-open, its brass handle slick with something that wasn’t water, and the librarian stood motionless, fingers brushing the spine of a book that hadn’t been there yesterday—its title unreadable, its paper warm. Above, the ceiling groaned with the weight of drowned shelves, and the only light came from the faint, flickering glow of the drawer’s interior, as if the wood itself remembered how to breathe. She didn’t close it. She couldn’t. Somewhere in the dark, a single card slipped free—not falling, but drifting, like a sigh that had forgotten how to land.","prev_tip":"efbcb52f4f9f65c5dd20c33115dd29a5e65b4d5a5569f37d11bd3adbf3a79fae","tip":"489b04d6147025776de0658b954d22e66e00597e64ae9ba24beb22a1b0df9179"},{"kind":"run","run_id":"scene-skin.v2.2026-10-03T07:37:03.787Z.517d31","ts":"2026-10-03T07:37:03.787Z","template":"scene-skin","version":2,"template_sha":"619fad1ce2d2bf69224be5878e503c81b541d7ae638a6990f105add579b66377","seed":"ebcd715d929f","shape_seed":"018a03355450","fills":{"place":"a flooded library","arrival":"under a power failure","figure":"the old night librarian","object":"a card catalogue drawer"},"nudge_vector":{"dread":{"value":0.7639,"weight":0.2,"contrib":0.1528},"longing":{"value":-0.0296,"weight":1.6,"contrib":-0.0473},"uncanny":{"value":0.7215,"weight":0.2,"contrib":0.1443},"resonance":{"value":0.2288,"weight":1.2,"contrib":0.2745}},"coherence":0.5623,"structure":{"luminance":0.2255,"figure_weight":0.9583,"object_gravity":1},"deadband":{"prior_run":"scene-skin.v2.2026-10-03T07:36:57.331Z.5f00c6","band":{"lo":0.4123,"hi":0.7123,"learned":false},"in_band":true,"mode":"replay","reason":"coherence inside band — mechanical replay","tokens_saved":464},"wordsmith_calls":[{"cell":"scene","path":"replay","llm":false,"morphs":1,"replay_of":"scene-skin.v2.2026-10-03T07:36:57.331Z.5f00c6"}],"words":{"scene":"The drawer hung half-open, its brass handle slick with something that wasn’t water, and the librarian stood motionless, fingers brushing the spine of a book that hadn’t been there yesterday—its title unreadable, its paper mild. Above, the ceiling groaned with the weight of drowned shelves, and the only light came from the faint, flickering glow of the drawer’s interior, as if the wood itself remembered how to breathe. She didn’t close it. She couldn’t. Somewhere in the dark, a single card slipped free—not falling, but drifting, like a sigh that had forgotten how to land."},"words_text":"The drawer hung half-open, its brass handle slick with something that wasn’t water, and the librarian stood motionless, fingers brushing the spine of a book that hadn’t been there yesterday—its title unreadable, its paper mild. Above, the ceiling groaned with the weight of drowned shelves, and the only light came from the faint, flickering glow of the drawer’s interior, as if the wood itself remembered how to breathe. She didn’t close it. She couldn’t. Somewhere in the dark, a single card slipped free—not falling, but drifting, like a sigh that had forgotten how to land.","prev_tip":"489b04d6147025776de0658b954d22e66e00597e64ae9ba24beb22a1b0df9179","tip":"c9043320bb4410ef834f45a03f9cb16e0d52a1d80066eff543d855918eda9275"},{"kind":"run","run_id":"discovery-skin.v1.2026-10-03T07:37:09.517Z.be4cb0","ts":"2026-10-03T07:37:09.517Z","template":"discovery-skin","version":1,"template_sha":"4180f34d8ddfb20dd43818f06d822f4acff6ececc802ac4efffe9bad1407ab66","seed":"1c1b9dbcbd58","shape_seed":"baf9434c9a70","fills":{"question":"Does retrieval augmentation reduce hallucination more than fine-tuning at equal token budgets?","budget":"one week","risk_appetite":"measured","taboo":"no paid APIs; no human subjects"},"nudge_vector":{"novelty":{"value":-0.0649,"weight":1,"contrib":-0.0649},"parsimony":{"value":0.0259,"weight":0.9,"contrib":0.0233},"risk":{"value":-0.3905,"weight":0.7,"contrib":-0.2733},"guardrail":{"value":-0.55,"weight":0.6,"contrib":-0.33},"resonance":{"value":-0.2374,"weight":0.5,"contrib":-0.1187}},"coherence":0.6017,"structure":{"horizon":0.7646,"crispness":0.3286,"leash":0.775},"deadband":{"prior_run":null,"band":null,"in_band":false,"mode":"live","reason":"no similar prior","tokens_saved":0},"wordsmith_calls":[{"cell":"discovery","path":"deepinfra","model":"Qwen/Qwen3-Next-80B-A3B-Instruct","llm":true,"usage":{"prompt_tokens":400,"total_tokens":442,"completion_tokens":42,"estimated_cost":0.00008219999999999999,"prompt_tokens_details":null,"reasoning_tokens":0},"ms":1267}],"words":{"discovery":"Augment retrieval with scrambled context—hallucinations rise if augmentation works, fall if fine-tuning dominates—count errors in model outputs on fixed prompts, no human input, no APIs, one week."},"words_text":"Augment retrieval with scrambled context—hallucinations rise if augmentation works, fall if fine-tuning dominates—count errors in model outputs on fixed prompts, no human input, no APIs, one week.","prev_tip":"c9043320bb4410ef834f45a03f9cb16e0d52a1d80066eff543d855918eda9275","tip":"b001d3b6136e56104aeab444a37fff6acf2ed650f3e0985849faced967ff45c1"},{"kind":"run","run_id":"discovery-skin.v1.2026-10-03T07:37:14.613Z.cc6875","ts":"2026-10-03T07:37:14.613Z","template":"discovery-skin","version":1,"template_sha":"4180f34d8ddfb20dd43818f06d822f4acff6ececc802ac4efffe9bad1407ab66","seed":"bffe01b6bc78","shape_seed":"baf9434c9a70","fills":{"question":"Does retrieval augmentation cut hallucination more than fine-tuning at equal token budgets?","budget":"one week","risk_appetite":"measured","taboo":"no paid APIs; no human subjects"},"nudge_vector":{"novelty":{"value":-0.0649,"weight":1,"contrib":-0.0649},"parsimony":{"value":0.0276,"weight":0.9,"contrib":0.0248},"risk":{"value":-0.3905,"weight":0.7,"contrib":-0.2733},"guardrail":{"value":-0.55,"weight":0.6,"contrib":-0.33},"resonance":{"value":-0.238,"weight":0.5,"contrib":-0.119}},"coherence":0.6013,"structure":{"horizon":0.848,"crispness":0.35,"leash":0.775},"deadband":{"prior_run":"discovery-skin.v1.2026-10-03T07:37:09.517Z.be4cb0","band":{"lo":0.4517,"hi":0.7517,"learned":false},"in_band":true,"mode":"replay","reason":"coherence inside band — mechanical replay","tokens_saved":442},"wordsmith_calls":[{"cell":"discovery","path":"replay","llm":false,"morphs":0,"replay_of":"discovery-skin.v1.2026-10-03T07:37:09.517Z.be4cb0"}],"words":{"discovery":"Augment retrieval with scrambled context—hallucinations rise if augmentation works, fall if fine-tuning dominates—count errors in model outputs on fixed prompts, no human input, no APIs, one week."},"words_text":"Augment retrieval with scrambled context—hallucinations rise if augmentation works, fall if fine-tuning dominates—count errors in model outputs on fixed prompts, no human input, no APIs, one week.","prev_tip":"b001d3b6136e56104aeab444a37fff6acf2ed650f3e0985849faced967ff45c1","tip":"ee3027c18e07e674d5ecd161e240cff48e4407cbaccfcb8a9f41dcb4cce0ad4d"},{"kind":"run","run_id":"discovery-skin.v1.2026-10-03T07:37:16.735Z.475855","ts":"2026-10-03T07:37:16.735Z","template":"discovery-skin","version":1,"template_sha":"4180f34d8ddfb20dd43818f06d822f4acff6ececc802ac4efffe9bad1407ab66","seed":"a52b82ff3018","shape_seed":"3735027d5f82","fills":{"question":"Do quantum random seeds measurably change LLM exploration quality in game-playing agents?","budget":"one long night","risk_appetite":"all-in","taboo":""},"nudge_vector":{"novelty":{"value":0.8366,"weight":1,"contrib":0.8366},"parsimony":{"value":-0.0327,"weight":0.9,"contrib":-0.0294},"risk":{"value":-0.8659,"weight":0.7,"contrib":-0.6062},"guardrail":{"value":1,"weight":0.6,"contrib":0.6},"resonance":{"value":0.5418,"weight":0.5,"contrib":0.2709}},"coherence":0.2595,"structure":{"horizon":0.9645,"crispness":0.3643,"leash":0},"deadband":{"prior_run":null,"band":null,"in_band":false,"mode":"live","reason":"no similar prior","tokens_saved":0},"wordsmith_calls":[{"cell":"discovery","path":"deepinfra","model":"Qwen/Qwen3-Next-80B-A3B-Instruct","llm":true,"usage":{"prompt_tokens":387,"total_tokens":452,"completion_tokens":65,"estimated_cost":0.00010633000000000001,"prompt_tokens_details":null,"reasoning_tokens":0},"ms":2081}],"words":{"discovery":"If quantum-randomized seeds alter LLM exploration in game-playing agents, then swapping them with classical seeds in identical trials will produce statistically indistinguishable win rates—test this by running 100 parallel games overnight with seed pairs swapped at midnight, and call it settled if the win rate difference is under 2%."},"words_text":"If quantum-randomized seeds alter LLM exploration in game-playing agents, then swapping them with classical seeds in identical trials will produce statistically indistinguishable win rates—test this by running 100 parallel games overnight with seed pairs swapped at midnight, and call it settled if the win rate difference is under 2%.","prev_tip":"ee3027c18e07e674d5ecd161e240cff48e4407cbaccfcb8a9f41dcb4cce0ad4d","tip":"c19ee4caf6100df92c8b30965c177a242307c14ccefd0b294b777fe0395d8120"},{"kind":"compile","ts":"2026-10-03T07:37:24.809Z","template":"discovery-skin","parent_version":1,"parent_sha":"4180f34d8ddfb20dd43818f06d822f4acff6ececc802ac4efffe9bad1407ab66","child_version":2,"child_sha":"ff5892adda10c04f9ec3162ae616021800e7364569145491e943cf61122621f4","child_path":"templates/discovery-skin.v2.json","runs_considered":3,"tuning":[{"cell":"novelty","corr":-1,"from":1,"to":0.2},{"cell":"parsimony","corr":0.9997,"from":0.9,"to":1.7997},{"cell":"risk","corr":1,"from":0.7,"to":1.4},{"cell":"guardrail","corr":-1,"from":0.6,"to":0.2},{"cell":"resonance","corr":-1,"from":0.5,"to":0.2}],"note":"compiled","bands":{"baf9434c9a70":{"lo":0.5515,"hi":0.6515,"learned":false},"3735027d5f82":{"lo":0.1095,"hi":0.4095,"learned":false}},"prev_tip":"c19ee4caf6100df92c8b30965c177a242307c14ccefd0b294b777fe0395d8120","tip":"b02a3c4739ddd32880a8c101359e4879006ba9a8f27604eb773de01f86f2d71f"},{"kind":"run","run_id":"discovery-skin.v2.2026-10-03T07:37:25.859Z.456b3e","ts":"2026-10-03T07:37:25.860Z","template":"discovery-skin","version":2,"template_sha":"ff5892adda10c04f9ec3162ae616021800e7364569145491e943cf61122621f4","seed":"14b4dcedcf54","shape_seed":"1d34a0596942","fills":{"question":"Can a non-parametric receipt field predict the next opcode of a chain better than a bigram baseline?","budget":"one quarter","risk_appetite":"playful","taboo":"no gradient descent; CPU only"},"nudge_vector":{"novelty":{"value":0.6926,"weight":0.2,"contrib":0.1385},"parsimony":{"value":0.1638,"weight":1.7997,"contrib":0.2949},"risk":{"value":-0.1473,"weight":1.4,"contrib":-0.2062},"guardrail":{"value":-0.45,"weight":0.2,"contrib":-0.09},"resonance":{"value":0.2306,"weight":0.2,"contrib":0.0461}},"coherence":0.5438,"structure":{"horizon":0.1348,"crispness":0.2857,"leash":0.725},"deadband":{"prior_run":null,"band":null,"in_band":false,"mode":"live","reason":"no similar prior","tokens_saved":0},"wordsmith_calls":[{"cell":"discovery","path":"deepinfra","model":"Qwen/Qwen3-Next-80B-A3B-Instruct","llm":true,"usage":{"prompt_tokens":410,"total_tokens":452,"completion_tokens":42,"estimated_cost":0.0000831,"prompt_tokens_details":null,"reasoning_tokens":0},"ms":1010}],"words":{"discovery":"A random receipt field from a prior transaction predicts the next opcode better than a bigram if it outperforms on three consecutive chains with no training, tested on a $0.25 Raspberry Pi."},"words_text":"A random receipt field from a prior transaction predicts the next opcode better than a bigram if it outperforms on three consecutive chains with no training, tested on a $0.25 Raspberry Pi.","prev_tip":"b02a3c4739ddd32880a8c101359e4879006ba9a8f27604eb773de01f86f2d71f","tip":"2d70939df90105c72449dc01cbbe332f886337042f76e34720ab7c2a12636df4"},{"kind":"run","run_id":"discovery-skin.v2.2026-10-03T07:37:29.746Z.0414e4","ts":"2026-10-03T07:37:29.746Z","template":"discovery-skin","version":2,"template_sha":"ff5892adda10c04f9ec3162ae616021800e7364569145491e943cf61122621f4","seed":"04af1544d8cc","shape_seed":"1d34a0596942","fills":{"question":"Can a non-parametric receipt field predict the next opcode of a receipt chain better than a bigram baseline?","budget":"one quarter","risk_appetite":"playful","taboo":"no gradient descent; CPU only"},"nudge_vector":{"novelty":{"value":0.6926,"weight":0.2,"contrib":0.1385},"parsimony":{"value":0.1311,"weight":1.7997,"contrib":0.2359},"risk":{"value":-0.1473,"weight":1.4,"contrib":-0.2062},"guardrail":{"value":-0.45,"weight":0.2,"contrib":-0.09},"resonance":{"value":0.2437,"weight":0.2,"contrib":0.0487}},"coherence":0.545,"structure":{"horizon":0.6127,"crispness":0.2286,"leash":0.725},"deadband":{"prior_run":"discovery-skin.v2.2026-10-03T07:37:25.859Z.456b3e","band":{"lo":0.3938,"hi":0.6938,"learned":false},"in_band":true,"mode":"replay","reason":"coherence inside band — mechanical replay","tokens_saved":452},"wordsmith_calls":[{"cell":"discovery","path":"replay","llm":false,"morphs":0,"replay_of":"discovery-skin.v2.2026-10-03T07:37:25.859Z.456b3e"}],"words":{"discovery":"A random receipt field from a prior transaction predicts the next opcode better than a bigram if it outperforms on three consecutive chains with no training, tested on a $0.25 Raspberry Pi."},"words_text":"A random receipt field from a prior transaction predicts the next opcode better than a bigram if it outperforms on three consecutive chains with no training, tested on a $0.25 Raspberry Pi.","prev_tip":"2d70939df90105c72449dc01cbbe332f886337042f76e34720ab7c2a12636df4","tip":"b14606296527bec8b9215deb217aad4a3aaf622e6ad696ad767a68aa00ca095c"},{"kind":"compile","ts":"2026-10-03T07:47:20.792Z","template":"scene-skin","parent_version":1,"parent_sha":"392e26cec942160d5dc917e20a8d5fe6c166eb5608e9f08f3c81c0c1a275a17f","child_version":2,"child_sha":"619fad1ce2d2bf69224be5878e503c81b541d7ae638a6990f105add579b66377","child_path":"templates/scene-skin.v2.json","runs_considered":3,"tuning":[{"cell":"dread","corr":-1,"from":0.9,"to":0.2},{"cell":"longing","corr":1,"from":0.8,"to":1.6},{"cell":"uncanny","corr":-1,"from":0.5,"to":0.2},{"cell":"resonance","corr":1,"from":0.6,"to":1.2}],"note":"compiled","bands":{"1d580ec3118c":{"lo":0.4105,"hi":0.5105,"learned":false},"934127b1fc8f":{"lo":0.3604,"hi":0.6604,"learned":false}},"prev_tip":"b14606296527bec8b9215deb217aad4a3aaf622e6ad696ad767a68aa00ca095c","tip":"24e7b2a4081e56ff7257567c11f1cb633aaf3aed9ece091457baa631df79594c"},{"kind":"compile","ts":"2026-10-03T07:47:20.833Z","template":"discovery-skin","parent_version":1,"parent_sha":"4180f34d8ddfb20dd43818f06d822f4acff6ececc802ac4efffe9bad1407ab66","child_version":2,"child_sha":"ff5892adda10c04f9ec3162ae616021800e7364569145491e943cf61122621f4","child_path":"templates/discovery-skin.v2.json","runs_considered":3,"tuning":[{"cell":"novelty","corr":-1,"from":1,"to":0.2},{"cell":"parsimony","corr":0.9997,"from":0.9,"to":1.7997},{"cell":"risk","corr":1,"from":0.7,"to":1.4},{"cell":"guardrail","corr":-1,"from":0.6,"to":0.2},{"cell":"resonance","corr":-1,"from":0.5,"to":0.2}],"note":"compiled","bands":{"baf9434c9a70":{"lo":0.5515,"hi":0.6515,"learned":false},"3735027d5f82":{"lo":0.1095,"hi":0.4095,"learned":false}},"prev_tip":"24e7b2a4081e56ff7257567c11f1cb633aaf3aed9ece091457baa631df79594c","tip":"790c7467da988d76cf0870affe9370cdae5102e7632a304e56f220a3b8d1e159"}]</script>
+
+<main>
+  <section class="panel" id="sheet-panel">
+    <h2><span class="dot">■</span> THE SHEET — spoken slots, unspoken skeleton</h2>
+    <div class="template-pick" id="tpicks"></div>
+    <div id="sheet"></div>
+    <div class="runrow"><button id="run" onclick="run()">RUN THE SHEET</button><span style="color:var(--dim);font-size:11.5px">deterministic · no network · same facts → same field</span></div>
+  </section>
+  <section>
+    <div class="panel">
+      <h2><span class="dot">■</span> THE UNSPOKEN — nudge vector + coherence</h2>
+      <canvas id="viz"></canvas>
+      <div class="stategrid" id="stategrid"></div>
+    </div>
+    <div id="words"></div>
+  </section>
+  <section class="panel receipts">
+    <h2><span class="dot">■</span> SHOW THE RECEIPTS — bundled run log (append-only, sha256-chained)</h2>
+    <div class="rstrip" id="rstrip"></div>
+    <div class="okbadge" id="chainok"></div>
+  </section>
+</main>
+<footer>madlibs-jev · the three laws: STRUCTURE FIRST / LAST-MILE WORDS / DEADBAND REPLAY · words marked REPLAY come from the bundled receipts; everything else is the deterministic fallback — this page makes no network calls</footer>
+
+<script>
+/*DEMO-CORE-START*/
+// The client-side port of the engine's pure core — the SAME laws, zero deps,
+// zero network. The tests (tests/engine.test.mjs, "demo parity") pin this
+// block against engine.mjs on a fixed battery: formulas, nudge vectors,
+// coherence, bands, morphs, hash01, sha256, the receipt chain.
+function MJ_SHA256(bytes) {
+  // FIPS 180-4 over bytes (UTF-8 handled by TextEncoder at the wrapper)
+  const K = [
+    0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+    0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+    0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+    0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+    0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+    0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+    0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+    0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  const bitLenHi = Math.floor((bytes.length * 8) / 0x100000000);
+  const bitLenLo = (bytes.length * 8) >>> 0;
+  const padded = bytes.slice();
+  padded.push(0x80);
+  while (padded.length % 64 !== 56) padded.push(0);
+  padded.push((bitLenHi >>> 24) & 0xff, (bitLenHi >>> 16) & 0xff, (bitLenHi >>> 8) & 0xff, bitLenHi & 0xff);
+  padded.push((bitLenLo >>> 24) & 0xff, (bitLenLo >>> 16) & 0xff, (bitLenLo >>> 8) & 0xff, bitLenLo & 0xff);
+  const rr = (x, n) => (x >>> n) | (x << (32 - n));
+  for (let off = 0; off < padded.length; off += 64) {
+    const w = new Array(64).fill(0);
+    for (let i = 0; i < 16; i++) {
+      const j = off + 4 * i;
+      w[i] = ((padded[j] << 24) | (padded[j + 1] << 16) | (padded[j + 2] << 8) | padded[j + 3]) | 0;
+    }
+    for (let i = 16; i < 64; i++) {
+      const s0 = rr(w[i-15], 7) ^ rr(w[i-15], 18) ^ (w[i-15] >>> 3);
+      const s1 = rr(w[i-2], 17) ^ rr(w[i-2], 19) ^ (w[i-2] >>> 10);
+      w[i] = (w[i-16] + s0 + w[i-7] + s1) | 0;
+    }
+    let a = H[0], b = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (let i = 0; i < 64; i++) {
+      const S1 = rr(e,6) ^ rr(e,11) ^ rr(e,25);
+      const ch = (e & f) ^ (~e & g);
+      const t1 = (h + S1 + ch + K[i] + w[i]) | 0;
+      const S0 = rr(a,2) ^ rr(a,13) ^ rr(a,22);
+      const mj = (a & b) ^ (a & c) ^ (b & c);
+      const t2 = (S0 + mj) | 0;
+      h = g; g = f; f = e; e = (d + t1) | 0; d = c; c = b; b = a; a = (t1 + t2) | 0;
+    }
+    H = [ (H[0]+a)|0, (H[1]+b)|0, (H[2]+c)|0, (H[3]+d)|0, (H[4]+e)|0, (H[5]+f)|0, (H[6]+g)|0, (H[7]+h)|0 ];
+  }
+  return H.map((x) => ("00000000" + ((x >>> 0).toString(16))).slice(-8)).join("");
+}
+const FNV_OFFSET = 0xcbf29ce484222325n, FNV_PRIME = 0x100000001b3n;
+const MJCORE = {
+  sha256: (s) => MJ_SHA256(Array.from(new TextEncoder().encode(String(s)))),
+  hash01: (s) => {
+    let h = FNV_OFFSET;
+    for (const b of new TextEncoder().encode(String(s))) { h ^= BigInt(b); h = (h * FNV_PRIME) & 0xffffffffffffffffn; }
+    return Number(h % 1000000007n) / 1000000007;
+  },
+  round4: (x) => Math.round(x * 10000) / 10000,
+  canon: (o) => {
+    if (o === null || typeof o !== "object") return JSON.stringify(o);
+    if (Array.isArray(o)) return "[" + o.map(MJCORE.canon).join(",") + "]";
+    return "{" + Object.keys(o).sort().map((k) => JSON.stringify(k) + ":" + MJCORE.canon(o[k])).join(",") + "}";
+  },
+  // ---- formula DSL (port of the engine tokenizer/parser/eval) ----
+  tokenizeFormula(src) {
+    const toks = []; let i = 0;
+    while (i < src.length) {
+      const c = src[i];
+      if (/\s/.test(c)) { i++; continue; }
+      if (/[0-9]/.test(c) || (c === "." && /[0-9]/.test(src[i + 1] || ""))) {
+        let j = i; while (j < src.length && /[0-9.]/.test(src[j])) j++;
+        toks.push({ t: "num", v: parseFloat(src.slice(i, j)) }); i = j; continue;
+      }
+      if (c === '"' || c === "'") {
+        let j = i + 1, s = "";
+        while (j < src.length && src[j] !== c) { s += src[j]; j++; }
+        if (j >= src.length) throw new Error("FORMULA_UNTERMINATED_STRING");
+        toks.push({ t: "str", v: s }); i = j + 1; continue;
+      }
+      if (/[A-Za-z_]/.test(c)) {
+        let j = i; while (j < src.length && /[A-Za-z0-9_]/.test(src[j])) j++;
+        toks.push({ t: "ident", v: src.slice(i, j) }); i = j; continue;
+      }
+      const three = src.slice(i, i + 3);
+      if (three === "===" || three === "!==") { toks.push({ t: "op", v: three === "===" ? "==" : "!=" }); i += 3; continue; }
+      const two = src.slice(i, i + 2);
+      if (["==", "!=", "<=", ">=", "&&", "||"].includes(two)) { toks.push({ t: "op", v: two }); i += 2; continue; }
+      if ("+-*/%<>():?!,.".includes(c)) { toks.push({ t: "op", v: c }); i++; continue; }
+      throw new Error("FORMULA_BAD_CHAR:" + c);
+    }
+    return toks;
+  },
+  parseFormula(src) {
+    const toks = MJCORE.tokenizeFormula(src); let p = 0;
+    const peek = () => toks[p];
+    const eat = (v) => { const t = toks[p]; if (!t || t.t !== "op" || t.v !== v) throw new Error("FORMULA_EXPECTED:" + v); p++; };
+    function primary() {
+      const t = peek();
+      if (!t) throw new Error("FORMULA_EOF");
+      if (t.t === "num") { p++; return { k: "num", v: t.v }; }
+      if (t.t === "str") { p++; return { k: "str", v: t.v }; }
+      if (t.t === "ident") {
+        p++;
+        if (peek() && peek().t === "op" && peek().v === "(") {
+          eat("("); const args = [];
+          if (!(peek() && peek().t === "op" && peek().v === ")")) {
+            args.push(ternary());
+            while (peek() && peek().t === "op" && peek().v === ",") { eat(","); args.push(ternary()); }
+          }
+          eat(")"); return { k: "call", f: t.v, args };
+        }
+        return { k: "ident", v: t.v };
+      }
+      if (t.t === "op" && t.v === "(") { eat("("); const e = ternary(); eat(")"); return e; }
+      if (t.t === "op" && t.v === "-") { eat("-"); return { k: "neg", a: primary() }; }
+      if (t.t === "op" && t.v === "!") { eat("!"); return { k: "not", a: primary() }; }
+      throw new Error("FORMULA_UNEXPECTED:" + t.v);
+    }
+    function mul() { let a = primary();
+      while (peek() && peek().t === "op" && ["*", "/", "%"].includes(peek().v)) { const op = toks[p++].v; a = { k: "bin", op, a, b: primary() }; } return a; }
+    function add() { let a = mul();
+      while (peek() && peek().t === "op" && ["+", "-"].includes(peek().v)) { const op = toks[p++].v; a = { k: "bin", op, a, b: mul() }; } return a; }
+    function cmp() { let a = add();
+      while (peek() && peek().t === "op" && ["<", "<=", ">", ">="].includes(peek().v)) { const op = toks[p++].v; a = { k: "bin", op, a, b: add() }; } return a; }
+    function eq() { let a = cmp();
+      while (peek() && peek().t === "op" && ["==", "!="].includes(peek().v)) { const op = toks[p++].v; a = { k: "bin", op, a, b: cmp() }; } return a; }
+    function land() { let a = eq();
+      while (peek() && peek().t === "op" && peek().v === "&&") { p++; a = { k: "and", a, b: eq() }; } return a; }
+    function lor() { let a = land();
+      while (peek() && peek().t === "op" && peek().v === "||") { p++; a = { k: "or", a, b: land() }; } return a; }
+    function ternary() { const a = lor();
+      if (peek() && peek().t === "op" && peek().v === "?") { p++; const b = ternary(); eat(":"); return { k: "cond", a, b, c: ternary() }; } return a; }
+    const ast = ternary();
+    if (p !== toks.length) throw new Error("FORMULA_TRAILING_TOKENS");
+    return ast;
+  },
+  FUNCS: {
+    len: (s) => String(s).length,
+    min: (...a) => Math.min(...a.map(Number)),
+    max: (...a) => Math.max(...a.map(Number)),
+    abs: (x) => Math.abs(Number(x)),
+    clamp: (v, lo, hi) => Math.min(hi, Math.max(lo, Number(v))),
+    round: (x, n = 0) => { const p = 10 ** Number(n); return Math.round(Number(x) * p) / p; },
+    pow: (a, b) => Number(a) ** Number(b),
+    hash01: (s) => MJCORE.hash01(s),
+    sway: (x) => { const u = typeof x === "number" ? Math.min(1, Math.max(0, x)) : MJCORE.hash01(x); return u * 2 - 1; },
+    pick: (list, seed) => { const o = String(list).split("|"); return o[Math.floor(MJCORE.hash01(seed) * o.length) % o.length]; },
+  },
+  evalFormula(ast, env) {
+    const F = MJCORE.FUNCS;
+    const ev = (n) => {
+      switch (n.k) {
+        case "num": return n.v;
+        case "str": return n.v;
+        case "ident":
+          if (!(n.v in env)) throw new Error("UNKNOWN_NAME:" + n.v);
+          return env[n.v];
+        case "call": { const f = F[n.f]; if (!f) throw new Error("UNKNOWN_FUNC:" + n.f); return f(...n.args.map(ev)); }
+        case "neg": return -Number(ev(n.a));
+        case "not": return ev(n.a) ? 0 : 1;
+        case "bin": {
+          const a = ev(n.a), b = ev(n.b);
+          switch (n.op) {
+            case "+": return typeof a === "string" || typeof b === "string" ? String(a) + String(b) : a + b;
+            case "-": return a - b; case "*": return a * b; case "/": return a / b; case "%": return a % b;
+            case "<": return a < b ? 1 : 0; case "<=": return a <= b ? 1 : 0;
+            case ">": return a > b ? 1 : 0; case ">=": return a >= b ? 1 : 0;
+            case "==": return a === b ? 1 : 0; case "!=": return a !== b ? 1 : 0;
+          }
+          throw new Error("FORMULA_BAD_OP:" + n.op);
+        }
+        case "and": return ev(n.a) && ev(n.b) ? 1 : 0;
+        case "or": return ev(n.a) || ev(n.b) ? 1 : 0;
+        case "cond": return ev(n.a) ? ev(n.b) : ev(n.c);
+      }
+      throw new Error("FORMULA_BAD_NODE");
+    };
+    return ev(ast);
+  },
+  // ---- shape memory (the honest turbovec: choice equality + token Jaccard) ----
+  tokens: (s) => String(s).toLowerCase().normalize("NFKC").split(/[^a-z0-9']+/).filter(Boolean),
+  similarShape(t, fillsA, fillsB, minSim = 0.6) {
+    for (const c of t.cells.filter((c) => c.kind === "situation" && c.type === "choice"))
+      if ((fillsA[c.id] ?? null) !== (fillsB[c.id] ?? null)) return false;
+    const texts = t.cells.filter((c) => c.kind === "situation" && c.type === "text");
+    if (!texts.length) return true;
+    const bags = [fillsA, fillsB].map((f) => {
+      const s = new Set();
+      for (const c of texts) for (const w of MJCORE.tokens(f[c.id] ?? "")) s.add(w);
+      return s;
+    });
+    const inter = [...bags[0]].filter((w) => bags[1].has(w)).length;
+    const union = new Set([...bags[0], ...bags[1]]).size;
+    return (union === 0 ? 1 : inter / union) >= minSim;
+  },
+  // ---- the unspoken layer ----
+  mapEnv: (env) => Object.assign({}, env),
+  accumulateNudges(tjson, env) {
+    const t = typeof tjson === "string" ? JSON.parse(tjson) : tjson;
+    env = Object.assign({}, env);
+    for (const c of t.cells.filter((c) => c.kind === "structure")) {
+      env[c.id] = MJCORE.evalFormula(MJCORE.parseFormula(c.expr), env);
+    }
+    const vec = {}; let clampedAny = false;
+    for (const c of t.cells.filter((c) => c.kind === "nudge")) {
+      let v = MJCORE.evalFormula(MJCORE.parseFormula(c.expr), env);
+      if (v < -1 || v > 1) { v = Math.max(-1, Math.min(1, v)); clampedAny = true; }
+      vec[c.id] = { value: MJCORE.round4(v), weight: MJCORE.round4(c.weight), contrib: MJCORE.round4(c.weight * v) };
+      env[c.id] = v;
+    }
+    const ws = Object.values(vec);
+    const W = ws.reduce((a, x) => a + x.weight, 0) || 1;
+    const mu = ws.reduce((a, x) => a + x.weight * x.value, 0) / W;
+    const sigma = Math.sqrt(ws.reduce((a, x) => a + x.weight * (x.value - mu) ** 2, 0) / W);
+    const coherence = MJCORE.round4(Math.max(0, Math.min(1, (1 - sigma) * (0.7 + 0.3 * Math.abs(mu)))));
+    return { vec, coherence, clampedAny, env, mu: MJCORE.round4(mu), sigma: MJCORE.round4(sigma) };
+  },
+  evaluateSheet(tjson, fills, seed) {
+    const t = typeof tjson === "string" ? JSON.parse(tjson) : tjson;
+    const shapeSeed = MJCORE.sha256(t.name + "|v" + t.version + "|" +
+      MJCORE.canon(Object.fromEntries(t.cells
+        .filter((c) => c.kind === "situation" && c.type === "choice")
+        .map((c) => [c.id, fills[c.id] ?? null])))).slice(0, 12);
+    const env = Object.assign({}, fills, { shape: shapeSeed, seed });
+    const st = MJCORE.accumulateNudges(t, env);
+    return { t, shapeSeed, seed, ...st };
+  },
+  bandFor(priorCoherences, learned) {
+    if (learned && Number.isFinite(learned.lo) && Number.isFinite(learned.hi)) return { ...learned, learned: true };
+    const n = priorCoherences.length;
+    if (n === 0) return null;
+    const mean = priorCoherences.reduce((a, b) => a + b, 0) / n;
+    if (n >= 2) {
+      const sd = Math.sqrt(priorCoherences.reduce((a, b) => a + (b - mean) ** 2, 0) / n);
+      const half = Math.max(0.05, 2 * sd);
+      return { lo: MJCORE.round4(Math.max(0, mean - half)), hi: MJCORE.round4(Math.min(1, mean + half)), learned: false };
+    }
+    return { lo: MJCORE.round4(Math.max(0, mean - 0.15)), hi: MJCORE.round4(Math.min(1, mean + 0.15)), learned: false };
+  },
+  // ---- deadband replay + deterministic last mile ----
+  MORPH_LEX: {
+    slow: "unhurried", bright: "luminous", dark: "shadowed", said: "voiced",
+    cold: "frore", quiet: "hushed", sharp: "keen", warm: "mild",
+    small: "slender", big: "broad", old: "weathered", new: "fresh",
+  },
+  lightMorph(text, seed) {
+    const words = String(text).split(/(\s+)/);
+    const hits = [];
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i].toLowerCase().replace(/[^a-z']/g, "");
+      if (MJCORE.MORPH_LEX[w]) hits.push(i);
+    }
+    let swaps = 0;
+    for (const i of hits) {
+      if (swaps >= 2) break;
+      const w = words[i].toLowerCase().replace(/[^a-z']/g, "");
+      if (MJCORE.hash01(seed + "|morph|" + w) < 0.5) continue;
+      words[i] = words[i].replace(new RegExp(w, "i"), MJCORE.MORPH_LEX[w]);
+      swaps++;
+    }
+    return { text: words.join(""), swaps };
+  },
+  ADJ_POS: ["luminous", "keen", "warm", "quick", "bright", "tender"],
+  ADJ_NEG: ["shadowed", "slow", "cold", "brittle", "dim", "heavy"],
+  ADJ_FLAT: ["still", "quiet", "level", "even", "muted"],
+  fallbackWordsmith(cell, env, seed, nudges) {
+    let shape = cell.fallback_shape ?? "{adj}.";
+    const dom = Object.values(nudges).sort((a, b) => Math.abs(b.contrib) - Math.abs(a.contrib))[0];
+    const dir = !dom ? "flat" : dom.contrib > 0.08 ? "pos" : dom.contrib < -0.08 ? "neg" : "flat";
+    const pool = dir === "pos" ? MJCORE.ADJ_POS : dir === "neg" ? MJCORE.ADJ_NEG : MJCORE.ADJ_FLAT;
+    const adj = pool[Math.floor(MJCORE.hash01(seed + "|" + cell.id + "|adj") * pool.length) % pool.length];
+    shape = shape.replace(/\{adj\}/g, adj);
+    shape = shape.replace(/\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, name) => (name in env ? String(env[name]) : "{?" + name + "}"));
+    return shape;
+  },
+  // ---- receipts (chain verified client-side) ----
+  receiptTip(row) {
+    const copy = Object.assign({}, row);
+    delete copy.tip;
+    return MJCORE.sha256(MJCORE.canon(copy));
+  },
+  verifyLedger(rows) {
+    let prev = "genesis";
+    for (const r of rows) {
+      if (r.prev_tip !== prev) return { ok: false, error: "CUSTODY_GAP" };
+      if (r.tip !== MJCORE.receiptTip(r)) return { ok: false, error: "RECEIPT_HASH_MISMATCH" };
+      prev = r.tip;
+    }
+    return { ok: true, rows: rows.length, tip: prev };
+  },
+};
+/*DEMO-CORE-END*/
+
+// ------------------------------------------------------------- page wiring
+const TEMPLATES = JSON.parse(document.getElementById("bundled-templates").textContent);
+const RECEIPTS = JSON.parse(document.getElementById("bundled-receipts").textContent);
+
+const sheetEl = document.getElementById("sheet");
+const vizEl = document.getElementById("viz");
+const wordsEl = document.getElementById("words");
+const stateEl = document.getElementById("stategrid");
+const rstripEl = document.getElementById("rstrip");
+let current = 0;
+
+function escapeHtml(s) { return String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+function renderPicks() {
+  const el = document.getElementById("tpicks");
+  el.innerHTML = "";
+  TEMPLATES.forEach((t, i) => {
+    const b = document.createElement("button");
+    b.className = "tpick" + (i === current ? " on" : "");
+    b.textContent = t.name + " · v" + t.version;
+    b.onclick = () => { current = i; renderPicks(); renderSheet(); run(true); };
+    el.appendChild(b);
+  });
+}
+
+function renderSheet() {
+  const t = TEMPLATES[current];
+  sheetEl.innerHTML = "";
+  for (const c of t.cells) {
+    if (c.kind === "situation") {
+      const label = document.createElement("label");
+      label.innerHTML = '<span class="kind">' + (c.type === "choice" ? "CHOICE" : "TEXT") + "</span> — " + escapeHtml(c.prompt);
+      const input = c.type === "choice" ? document.createElement("select") : document.createElement("input");
+      if (c.type === "choice") {
+        for (const o of c.options) {
+          const op = document.createElement("option");
+          op.value = o; op.textContent = o;
+          input.appendChild(op);
+        }
+      } else {
+        input.type = "text";
+        if (c.id === "figure") input.value = "the ferryman";
+        else if (c.id === "object") input.value = "a brass key";
+        else input.value = "";
+      }
+      input.id = "slot-" + c.id;
+      input.addEventListener("input", () => run(true));
+      sheetEl.appendChild(label); sheetEl.appendChild(input);
+    } else if (c.kind === "structure" || c.kind === "nudge") {
+      const ghost = document.createElement("div");
+      ghost.className = "cell-ghost";
+      ghost.innerHTML = '<span class="kind">' + c.kind.toUpperCase() + '</span> <code>' + escapeHtml(c.id) + "</code> = <code>" + escapeHtml(c.expr) + "</code>" + (c.kind === "nudge" ? ' <span style="color:var(--amber)">w=' + c.weight + "</span>" : "");
+      sheetEl.appendChild(ghost);
+    }
+  }
+}
+
+function collectFills(t) {
+  const fills = {};
+  for (const c of t.cells.filter((c) => c.kind === "situation")) {
+    const el = document.getElementById("slot-" + c.id);
+    fills[c.id] = el ? el.value : "";
+  }
+  return fills;
+}
+
+function computeState() {
+  const t = TEMPLATES[current];
+  const fills = collectFills(t);
+  const seed = MJCORE.sha256(t.name + "|v" + t.version + "|" + MJCORE.canon(fills)).slice(0, 12);
+  const st = MJCORE.evaluateSheet(t, fills, seed);
+  // deadband lookup against the bundled receipts (the engine's exact rule)
+  const runs = RECEIPTS.filter((r) => r.kind === "run" && r.template === t.name && r.version === t.version);
+  let prior = null;
+  for (const r of runs) if (MJCORE.similarShape(t, r.fills, fills)) prior = r;
+  const compiles = RECEIPTS.filter((r) => r.kind === "compile" && r.template === t.name && r.parent_version === t.version);
+  const learned = compiles.length ? (compiles[compiles.length - 1].bands?.[st.shapeSeed] ?? null) : null;
+  const cohs = runs.filter((r) => MJCORE.similarShape(t, r.fills, fills)).map((r) => r.coherence);
+  const band = cohs.length ? MJCORE.bandFor(cohs, learned) : null;
+  const inBand = !!(band && st.coherence >= band.lo && st.coherence <= band.hi);
+  return { t, fills, st, prior, band, inBand, skip: !!(prior && inBand) };
+}
+
+function run(quiet) {
+  const { t, st, prior, band, inBand, skip } = computeState();
+  drawViz(st, band, inBand);
+  // unspoken grid
+  stateEl.innerHTML = "";
+  const row = (k, v) => {
+    const a = document.createElement("div"); a.textContent = k;
+    const b = document.createElement("div"); b.innerHTML = "<b>" + escapeHtml(String(v)) + "</b>";
+    stateEl.appendChild(a); stateEl.appendChild(b);
+  };
+  row("shape_seed", st.shapeSeed);
+  row("run_seed", st.seed);
+  row("coherence", st.coherence + (band ? "  band [" + band.lo + ", " + band.hi + "]" + (band.learned ? " (learned)" : " (a-priori)") : "  (no prior)"));
+  row("deadband", skip ? "REPLAY — inside band, word-smith sleeps" : prior ? "BREACH — outside band, word-smith wakes" : "LIVE — no similar prior");
+  for (const [k, v] of Object.entries(st.vec)) row("nudge " + k, v.value + " × w" + v.weight + " → " + v.contrib);
+  // words: the client never calls an LLM. Replay from the bundled receipts
+  // when the deadband allows; otherwise the deterministic fallback, honestly.
+  wordsEl.innerHTML = "";
+  for (const c of t.cells.filter((c) => c.kind === "wordsmith")) {
+    const card = document.createElement("div");
+    let text, badge, cls;
+    if (skip && prior && typeof prior.words?.[c.id] === "string") {
+      const m = MJCORE.lightMorph(prior.words[c.id], st.seed + "|" + c.id);
+      text = m.text;
+      const saved = (prior.wordsmith_calls || []).find((x) => x.cell === c.id)?.usage?.total_tokens ?? 320;
+      badge = "REPLAY · 0 tokens · saved " + saved + " · morphs " + m.swaps + " · of " + prior.run_id.slice(0, 26);
+      cls = "replay";
+    } else {
+      text = MJCORE.fallbackWordsmith(c, st.env, st.seed, st.vec);
+      badge = "OFFLINE FALLBACK · llm=false · deterministic · this page never calls a model";
+      cls = "fallback";
+    }
+    card.className = "wordcard " + cls;
+    card.innerHTML = '<span class="badge ' + cls + '">' + badge + '</span><div class="words"></div>';
+    card.querySelector(".words").textContent = text;
+    wordsEl.appendChild(card);
+  }
+}
+
+function drawViz(st, band, inBand) {
+  const cv = vizEl;
+  const W = cv.width = 760, H = cv.height = 380;
+  const g = cv.getContext("2d");
+  g.clearRect(0, 0, W, H);
+  // ---- coherence gauge (arc) ----
+  const cx = W / 2, cy = 118, R = 92;
+  g.lineWidth = 14; g.lineCap = "butt";
+  g.strokeStyle = "#1d2230";
+  g.beginPath(); g.arc(cx, cy, R, Math.PI, 2 * Math.PI); g.stroke();
+  if (band) { // learned band region in amber
+    g.strokeStyle = inBand ? "rgba(240,180,41,.85)" : "rgba(240,180,41,.4)";
+    g.beginPath();
+    g.arc(cx, cy, R, Math.PI + Math.PI * band.lo, Math.PI + Math.PI * band.hi);
+    g.stroke();
+  }
+  g.strokeStyle = "#7ee0c3";
+  g.beginPath(); g.arc(cx, cy, R, Math.PI + Math.PI * 0.0001, Math.PI + Math.PI * Math.max(0.001, st.coherence)); g.stroke();
+  g.fillStyle = "#c7cdd8"; g.font = "600 30px ui-monospace, Menlo, monospace"; g.textAlign = "center";
+  g.fillText(String(st.coherence), cx, cy - 26);
+  g.fillStyle = "#6b7280"; g.font = "11px ui-monospace, Menlo, monospace";
+  g.fillText("COHERENCE", cx, cy - 8);
+  g.textAlign = "left";
+  g.fillStyle = "#6b7280"; g.fillText("0", cx - R - 6, cy + 16);
+  g.textAlign = "right"; g.fillText("1", cx + R + 6, cy + 16); g.textAlign = "center";
+  g.fillStyle = inBand ? "#f0b429" : "#6b7280";
+  g.fillText(band ? (inBand ? "in band — deadband holds" : "OUT OF BAND — word-smith would wake") : "no prior shape — live", cx, cy + 34);
+  // ---- nudge bars ----
+  const ids = Object.keys(st.vec);
+  const x0 = 70, x1 = W - 130, mid = (x0 + x1) / 2, span = (x1 - x0) / 2;
+  const y0 = 214, dy = Math.min(28, (H - y0 - 22) / Math.max(1, ids.length));
+  g.font = "11px ui-monospace, Menlo, monospace";
+  g.textAlign = "left";
+  g.fillStyle = "#6b7280";
+  g.fillText("nudge vector (value × weight → contrib), −1 … +1", x0, y0 - 12);
+  for (let i = 0; i < ids.length; i++) {
+    const v = st.vec[ids[i]];
+    const y = y0 + i * dy + dy / 2;
+    g.textAlign = "right"; g.fillStyle = "#6b7280";
+    g.fillText(ids[i], x0 - 10, y + 4);
+    g.strokeStyle = "#1d2230"; g.lineWidth = 1;
+    g.beginPath(); g.moveTo(x0, y); g.lineTo(x1, y); g.stroke();
+    g.beginPath(); g.moveTo(mid, y - 7); g.lineTo(mid, y + 7); g.stroke();
+    const len = v.value * span;
+    g.fillStyle = v.value >= 0 ? "#7ee0c3" : "#f0b429";
+    g.fillRect(Math.min(mid, mid + len), y - 4, Math.abs(len) || 1, 8);
+    g.textAlign = "left"; g.fillStyle = "#8f9bb0";
+    g.fillText(v.value + " · w" + v.weight + " → " + v.contrib, x1 + 10, y + 4);
+  }
+  g.textAlign = "center"; g.fillStyle = "#6b7280";
+  g.fillText("−1", mid - span, H - 6);
+  g.fillText("0", mid, H - 6);
+  g.fillText("+1", mid + span, H - 6);
+}
+
+function renderReceipts() {
+  rstripEl.innerHTML = "";
+  for (const r of RECEIPTS) {
+    const chip = document.createElement("div");
+    chip.className = "rchip";
+    if (r.kind === "compile") {
+      chip.innerHTML = '<div class="rid">COMPILE · ' + escapeHtml(r.ts.slice(0, 19)) + '</div>' +
+        '<div class="rline"><span class="mode-compile">' + escapeHtml(r.template) + " v" + r.parent_version + "→v" + r.child_version + "</span></div>" +
+        '<div class="rline">' + r.tuning.length + " nudge weights tuned</div>" +
+        '<div class="rline rid">tip ' + escapeHtml(r.tip.slice(0, 10)) + "</div>";
+    } else {
+      const call = r.wordsmith_calls[0] || {};
+      chip.innerHTML = '<div class="rid">' + escapeHtml(r.ts.slice(0, 19)) + "</div>" +
+        '<div class="rline">' + escapeHtml(r.template) + " v" + r.version + ' · <span class="mode-' + r.deadband.mode + '">' + r.deadband.mode.toUpperCase() + "</span></div>" +
+        '<div class="rline">coh ' + r.coherence + " · " + escapeHtml(call.path || "?") + (call.usage ? " · " + call.usage.total_tokens + " tok" : (call.path === "replay" ? " · saved " + r.deadband.tokens_saved : "")) + "</div>" +
+        '<div class="rline rid">tip ' + escapeHtml(r.tip.slice(0, 10)) + "</div>";
+    }
+    chip.title = r.kind === "compile" ? "compile receipt" : (r.words_text || r.run_id);
+    rstripEl.appendChild(chip);
+  }
+  const v = MJCORE.verifyLedger(RECEIPTS);
+  const okEl = document.getElementById("chainok");
+  okEl.textContent = v.ok
+    ? "● CHAIN VERIFIED client-side — " + v.rows + " receipts, tip " + v.tip.slice(0, 16)
+    : "✗ CHAIN BROKEN: " + v.error;
+  okEl.style.color = v.ok ? "var(--mint)" : "#e06c75";
+}
+
+renderPicks();
+renderSheet();
+run(true);
+renderReceipts();
+</script>
+</body>
+</html>

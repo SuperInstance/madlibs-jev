@@ -298,7 +298,7 @@ test("demo core (client port) agrees with the engine on a fixed battery", async 
     assert.equal(coreState.coherence, engineState.coherence, tjson.name + " coherence");
     // formulas agree cell-by-cell
     for (const c of lt.cells.filter((c) => c.kind === "structure")) {
-      assert.equal(MJCORE.evalFormula(c.expr, MJCORE.mapEnv(env)), evalFormula(c._ast, env), c.id);
+      assert.equal(MJCORE.evalFormula(MJCORE.parseFormula(c.expr), MJCORE.mapEnv(env)), evalFormula(c._ast, env), c.id);
     }
   }
   // shared helpers agree

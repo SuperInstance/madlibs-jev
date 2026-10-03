@@ -1,0 +1,105 @@
+# madlibs-jev
+
+> **Madlibs where the substrate is the first-class citizen and the LLM is the
+> last-mile word-smith.** The blanks are not words — they are cells. The
+> skeleton thinks; only the skin speaks.
+
+Sibling of [discovery-mad-libs](https://github.com/SuperInstance/discovery-mad-libs)
+(templates + sessions + rewind), [madlibs-gan](https://github.com/SuperInstance/madlibs-gan)
+(paradigm games with JEV+JEPA as the peanut gallery) and
+[madlibs-gan-turbovec](https://github.com/SuperInstance/madlibs-gan-turbovec)
+(paradigm memory). This repo is the fleet's own angle: **the madlib sheet IS a
+JEV quilt**, and the LLM is hired only for the final stretch of language.
+
+## The three laws
+
+1. **STRUCTURE FIRST.** A template is a typed cell sheet, not a prompt string:
+   - `situation` cells — the spoken blanks a human or agent fills (choices, facts);
+   - `structure` cells — pure formulas over the situation (the unspoken skeleton:
+     luminance, gravity, leash, horizon...), evaluated deterministically;
+   - `nudge` cells — the unspoken field: weighted values in [-1, 1] (dread,
+     longing, uncanny, novelty, parsimony, risk...). Nudges may resonate off
+     earlier nudges. A **coherence** score = agreement (low dispersion) ×
+     resolve (mean direction), in [0, 1].
+   - `wordsmith` cells — the ONLY cells allowed to call a model. They receive
+     the accumulated unspoken state as soft guidance and produce the words.
+2. **LAST-MILE WORDS.** Models never decide; they clothe. The situation facts,
+   the structure and the nudge field are computed BEFORE any model call, and
+   the prompt hands the model a shaped field, not an open question.
+3. **DEADBAND REPLAY** (the exocortex law, from erised-exocortex). If the same
+   template + a similar fill-shape already produced a run whose coherence lies
+   inside the learned band, the engine SKIPS the model and mechanically replays
+   the prior words (lightly morphed, seeded, receipted as `mode: replay`).
+   Surprise outside the band re-opens the word-smith. Token economy is a
+   first-class receipt field (`tokens_saved`).
+
+## Template evolution (the loop, not the run)
+
+After every 3 runs, `compile.mjs` correlates each nudge with coherence and
+emits `vNext` with re-tuned weights — append-only, parent sha chained, never
+mutating the parent. Receipts of record:
+
+| template | v1 coherence | v2 coherence | compile tunings |
+|---|---|---|---|
+| scene-skin | 0.4605 | 0.5623 | 4 cells re-weighted |
+| discovery-skin | 0.6017 | 0.5438 | 5 cells re-weighted (honest regression — negative correlation found on `novelty`, weight 1 → 0.2) |
+
+The discovery-skin regression is a genuine finding kept visible: coherence is
+not "higher is better" — the compile step chased agreement and flattened the
+novelty axis the template was built to explore. See LIMITS.
+
+## Token economy (the receipted claim)
+
+10 runs across 2 templates × 2 versions: **6 live word-smith calls, 4
+mechanical deadband replays**, ~1.8k characters of avoided generation, all
+recorded per-run in `receipts/ledger.jsonl` (`deadband.mode`,
+`deadband.tokens_saved`). The fourth run of a shape is where the exocortex
+starts paying rent.
+
+## The unspoken layer
+
+Nudges are vector-not-value: they are accumulated, weighted, resonant, and
+used twice — once as the coherence gate for the deadband, once as soft
+guidance inside the word-smith prompt ("the field says: uncanny 0.91, longing
+0.25, dread −0.11; let the prose sit at that temperature"). The words are the
+skin; the field is the drum-frame. No model ever sees a blank it could fill
+wrong, only a drum ready for its skin.
+
+## Layout
+
+- `engine.mjs` — cell sheet parser (fail-closed), formula engine, nudge
+  accumulation, deadband law, word-smith dispatcher (DeepInfra → Groq →
+  deterministic fallback, honestly labeled), append-only ledger.
+- `compile.mjs` — template evolution (correlate nudges × coherence → vNext).
+- `templates/` — scene-skin + discovery-skin, v1 and v2 (v1 immutable).
+- `receipts/ledger.jsonl` — append-only run + compile receipts (sha-chained
+  via `prev_tip` → `tip`).
+- `tests/` — 18 tests: fail-closed parsing, nudge determinism, deadband skip,
+  ledger append-only, template-evolution link integrity, **demo parity** (the
+  client-side core in `demo/index.html` is pinned to the engine on a fixed
+  battery).
+- `demo/index.html` — self-contained madlibs playground (no network, no CDN):
+  fill the spoken blanks, watch the nudge field + coherence meter move, run,
+  and read the bundled real receipts. Dark quilt aesthetic.
+- `tools/bundle-demo.mjs` — injects current templates + receipts into the demo.
+
+## Run it
+
+```bash
+node run.mjs                      # replays the receipted campaign (no network)
+node run.mjs --live               # real word-smith calls (keys from env)
+node compile.mjs                  # evolve templates from receipts
+node --test tests/engine.test.mjs # 18/18
+```
+
+## Honest limits
+
+- **Coherence chasing can flatten exploration.** discovery-skin v2 regressed
+  (0.60 → 0.54) because the compile step rewarded agreement. Future work: a
+  purpose-aware compile that trades coherence against a diversity term.
+- The shape-memory is honest-but-shallow (choice equality + token Jaccard), a
+  deliberate stub for a turbovec-style index (see madlibs-gan-turbovec).
+- Deadband bands are currently a-priori margins (mean ± max(0.05, 2·sd) once ≥2
+  priors exist); learned bands arrive with more receipts.
+- Word-smith fallback is deterministic and honestly labeled `llm:false` in
+  receipts — the demo never needs a network, and runs never need one either.

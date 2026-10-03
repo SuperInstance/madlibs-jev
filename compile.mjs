@@ -33,6 +33,9 @@ const runs = rows.filter((r) => r.kind === "run" && r.template === parent.name &
 if (runs.length === 0) { console.error("COMPILE_REFUSED: no runs for", parent.name, "v" + parent.version); process.exit(1); }
 
 const child = compileTemplate(parent, rows, { minRuns });
+// strip parsed ASTs — version files carry clean cells only (the sha ignores
+// them either way, so lineage shas in the ledger remain valid)
+const childClean = { ...child, cells: child.cells.map(({ _ast, ...rest }) => rest) };
 
 // learned bands per shape-class, keyed by the receipt's own shape_seed — the
 // engine looks bands up by the same key it stamps into run receipts.
@@ -42,7 +45,7 @@ for (const r of runs) (byShape[r.shape_seed] ??= []).push(r.coherence);
 for (const [shapeSeed, cohs] of Object.entries(byShape)) bands[shapeSeed] = bandFor(cohs);
 
 const outPath = templatePath.replace(/\.json$/, `.v${child.version}.json`);
-fs.writeFileSync(outPath, JSON.stringify(child, null, 2) + "\n");
+fs.writeFileSync(outPath, JSON.stringify(childClean, null, 2) + "\n");
 
 const receipt = appendReceipt(ledgerPath, {
   kind: "compile",

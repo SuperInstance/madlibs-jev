@@ -15,8 +15,7 @@
         "the observatory",
         "a flooded library",
         "the last train platform"
-      ],
-      "_ast": null
+      ]
     },
     {
       "id": "arrival",
@@ -28,353 +27,65 @@
         "in fog",
         "under a power failure",
         "as the sirens end"
-      ],
-      "_ast": null
+      ]
     },
     {
       "id": "figure",
       "kind": "situation",
       "type": "text",
-      "prompt": "Who is there? (a short figure description)",
-      "_ast": null
+      "prompt": "Who is there? (a short figure description)"
     },
     {
       "id": "object",
       "kind": "situation",
       "type": "text",
-      "prompt": "One object in their hands or on the table",
-      "_ast": null
+      "prompt": "One object in their hands or on the table"
     },
     {
       "id": "luminance",
       "kind": "structure",
       "expr": "clamp(0.2 + hash01(place + \"|\" + arrival) * 0.6 + (arrival == \"at dusk\" ? 0.15 : 0), 0, 1)",
-      "doc": "how much light the situation admits (0 dark .. 1 bright)",
-      "_ast": {
-        "k": "call",
-        "f": "clamp",
-        "args": [
-          {
-            "k": "bin",
-            "op": "+",
-            "a": {
-              "k": "bin",
-              "op": "+",
-              "a": {
-                "k": "num",
-                "v": 0.2
-              },
-              "b": {
-                "k": "bin",
-                "op": "*",
-                "a": {
-                  "k": "call",
-                  "f": "hash01",
-                  "args": [
-                    {
-                      "k": "bin",
-                      "op": "+",
-                      "a": {
-                        "k": "bin",
-                        "op": "+",
-                        "a": {
-                          "k": "ident",
-                          "v": "place"
-                        },
-                        "b": {
-                          "k": "str",
-                          "v": "|"
-                        }
-                      },
-                      "b": {
-                        "k": "ident",
-                        "v": "arrival"
-                      }
-                    }
-                  ]
-                },
-                "b": {
-                  "k": "num",
-                  "v": 0.6
-                }
-              }
-            },
-            "b": {
-              "k": "cond",
-              "a": {
-                "k": "bin",
-                "op": "==",
-                "a": {
-                  "k": "ident",
-                  "v": "arrival"
-                },
-                "b": {
-                  "k": "str",
-                  "v": "at dusk"
-                }
-              },
-              "b": {
-                "k": "num",
-                "v": 0.15
-              },
-              "c": {
-                "k": "num",
-                "v": 0
-              }
-            }
-          },
-          {
-            "k": "num",
-            "v": 0
-          },
-          {
-            "k": "num",
-            "v": 1
-          }
-        ]
-      }
+      "doc": "how much light the situation admits (0 dark .. 1 bright)"
     },
     {
       "id": "figure_weight",
       "kind": "structure",
       "expr": "clamp(len(figure) / 24, 0, 1)",
-      "doc": "presence weight of the figure from how specifically they are described",
-      "_ast": {
-        "k": "call",
-        "f": "clamp",
-        "args": [
-          {
-            "k": "bin",
-            "op": "/",
-            "a": {
-              "k": "call",
-              "f": "len",
-              "args": [
-                {
-                  "k": "ident",
-                  "v": "figure"
-                }
-              ]
-            },
-            "b": {
-              "k": "num",
-              "v": 24
-            }
-          },
-          {
-            "k": "num",
-            "v": 0
-          },
-          {
-            "k": "num",
-            "v": 1
-          }
-        ]
-      }
+      "doc": "presence weight of the figure from how specifically they are described"
     },
     {
       "id": "object_gravity",
       "kind": "structure",
       "expr": "clamp(len(object) / 16, 0, 1)",
-      "doc": "how much the object pulls focus",
-      "_ast": {
-        "k": "call",
-        "f": "clamp",
-        "args": [
-          {
-            "k": "bin",
-            "op": "/",
-            "a": {
-              "k": "call",
-              "f": "len",
-              "args": [
-                {
-                  "k": "ident",
-                  "v": "object"
-                }
-              ]
-            },
-            "b": {
-              "k": "num",
-              "v": 16
-            }
-          },
-          {
-            "k": "num",
-            "v": 0
-          },
-          {
-            "k": "num",
-            "v": 1
-          }
-        ]
-      }
+      "doc": "how much the object pulls focus"
     },
     {
       "id": "dread",
       "kind": "nudge",
       "weight": 0.2,
       "expr": "sway(\"dread|\" + shape) * (1 - luminance)",
-      "doc": "darker scenes lean toward dread; dice-drawn direction",
-      "_ast": {
-        "k": "bin",
-        "op": "*",
-        "a": {
-          "k": "call",
-          "f": "sway",
-          "args": [
-            {
-              "k": "bin",
-              "op": "+",
-              "a": {
-                "k": "str",
-                "v": "dread|"
-              },
-              "b": {
-                "k": "ident",
-                "v": "shape"
-              }
-            }
-          ]
-        },
-        "b": {
-          "k": "bin",
-          "op": "-",
-          "a": {
-            "k": "num",
-            "v": 1
-          },
-          "b": {
-            "k": "ident",
-            "v": "luminance"
-          }
-        }
-      }
+      "doc": "darker scenes lean toward dread; dice-drawn direction"
     },
     {
       "id": "longing",
       "kind": "nudge",
       "weight": 1.6,
       "expr": "sway(\"longing|\" + shape) * luminance",
-      "doc": "brighter scenes admit longing",
-      "_ast": {
-        "k": "bin",
-        "op": "*",
-        "a": {
-          "k": "call",
-          "f": "sway",
-          "args": [
-            {
-              "k": "bin",
-              "op": "+",
-              "a": {
-                "k": "str",
-                "v": "longing|"
-              },
-              "b": {
-                "k": "ident",
-                "v": "shape"
-              }
-            }
-          ]
-        },
-        "b": {
-          "k": "ident",
-          "v": "luminance"
-        }
-      }
+      "doc": "brighter scenes admit longing"
     },
     {
       "id": "uncanny",
       "kind": "nudge",
       "weight": 0.2,
       "expr": "sway(\"uncanny|\" + shape) * (0.4 + object_gravity)",
-      "doc": "a heavy object makes the strange more available",
-      "_ast": {
-        "k": "bin",
-        "op": "*",
-        "a": {
-          "k": "call",
-          "f": "sway",
-          "args": [
-            {
-              "k": "bin",
-              "op": "+",
-              "a": {
-                "k": "str",
-                "v": "uncanny|"
-              },
-              "b": {
-                "k": "ident",
-                "v": "shape"
-              }
-            }
-          ]
-        },
-        "b": {
-          "k": "bin",
-          "op": "+",
-          "a": {
-            "k": "num",
-            "v": 0.4
-          },
-          "b": {
-            "k": "ident",
-            "v": "object_gravity"
-          }
-        }
-      }
+      "doc": "a heavy object makes the strange more available"
     },
     {
       "id": "resonance",
       "kind": "nudge",
       "weight": 1.2,
       "expr": "0.5 * dread + 0.3 * longing - 0.2 * uncanny",
-      "doc": "feedback term: the field listening to itself",
-      "_ast": {
-        "k": "bin",
-        "op": "-",
-        "a": {
-          "k": "bin",
-          "op": "+",
-          "a": {
-            "k": "bin",
-            "op": "*",
-            "a": {
-              "k": "num",
-              "v": 0.5
-            },
-            "b": {
-              "k": "ident",
-              "v": "dread"
-            }
-          },
-          "b": {
-            "k": "bin",
-            "op": "*",
-            "a": {
-              "k": "num",
-              "v": 0.3
-            },
-            "b": {
-              "k": "ident",
-              "v": "longing"
-            }
-          }
-        },
-        "b": {
-          "k": "bin",
-          "op": "*",
-          "a": {
-            "k": "num",
-            "v": 0.2
-          },
-          "b": {
-            "k": "ident",
-            "v": "uncanny"
-          }
-        }
-      }
+      "doc": "feedback term: the field listening to itself"
     },
     {
       "id": "scene",
@@ -383,8 +94,7 @@
       "max_tokens": 500,
       "temperature": 0.8,
       "fallback_shape": "{figure} waits where {place} holds its {arrival}; the air is {adj}, and {object} keeps its weight.",
-      "doc": "the ONLY LLM cell — last-mile word-smithing over the accumulated unspoken field",
-      "_ast": null
+      "doc": "the ONLY LLM cell — last-mile word-smithing over the accumulated unspoken field"
     }
   ],
   "evolution": {
@@ -418,6 +128,6 @@
       }
     ],
     "note": "compiled",
-    "compiled_ts": "2026-10-03T07:36:55.796Z"
+    "compiled_ts": "2026-10-03T07:47:20.792Z"
   }
 }
