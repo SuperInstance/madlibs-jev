@@ -86,11 +86,22 @@ wrong, only a drum ready for its skin.
 ## Run it
 
 ```bash
-node run.mjs                      # replays the receipted campaign (no network)
-node run.mjs --live               # real word-smith calls (keys from env)
-node compile.mjs                  # evolve templates from receipts
-node --test tests/engine.test.mjs # 18/18
+npm test                                   # 23/23 (18 engine + 5 shape-memory)
+node --test tests/*.test.mjs               # same suite, raw (no directory form: `node --test tests/` fails)
+node run-index.mjs                         # Bridge-1 parity receipt: 0 mismatches (exit 1 on any)
+node run.mjs templates/scene-skin.json \
+     --fill place="a night ferry" \
+     --fill arrival="in fog" \
+     --fill figure="the ferryman" \
+     --fill object="a brass key"           # one run; a deadband hit replays at 0 tokens
+node compile.mjs templates/scene-skin.json # evolve vNext (appends a compile receipt)
+node tools/bundle-demo.mjs                 # rebuild demo/index.html from current receipts
 ```
+
+Note: there is no `--live` flag — a run hires the word-smith automatically
+(DeepInfra → Groq → deterministic fallback, honestly labeled) only when the
+deadband misses; `demo/index.html` replays the receipted campaign client-side
+with no network.
 
 
 ## Bridge 1, receipted: the quantized shape index (`shape-memory.mjs`)
